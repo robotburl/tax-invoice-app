@@ -24,17 +24,14 @@
       <img id="user-avatar" src="" style="width:30px;height:30px;border-radius:50%;display:none">
       <span id="user-name" style="font-size:13px;color:var(--text2)"></span>
       <span id="user-role-badge" style="font-size:11px;padding:2px 8px;border-radius:10px;background:var(--accent-bg);color:var(--accent);display:none"></span>
+      <button onclick="showMoreMenu()" style="background:none;border:none;color:var(--text3);font-size:18px;cursor:pointer;padding:4px">⋯</button>
     </div>
   </div>
 
-  <!-- Nav tabs -->
-  <div class="nav-tabs">
-    <button class="nav-tab active" onclick="showTab('dashboard')">📊 ภาพรวม</button>
-    <button class="nav-tab" onclick="showTab('invoices')">🧾 ใบกำกับ</button>
-    <button class="nav-tab" onclick="showTab('wht')">📋 WHT</button>
-    <button class="nav-tab" onclick="showTab('companies')">🏢 บริษัท</button>
-    <button class="nav-tab owner-only" onclick="showTab('staff')" style="display:none">👥 พนักงาน</button>
-    <button class="nav-tab" onclick="logout()" style="margin-left:auto;color:var(--text3)">ออก</button>
+  <!-- More menu (staff tab + logout) -->
+  <div id="more-menu" style="display:none;position:fixed;top:52px;right:12px;background:var(--card);border:1px solid var(--border);border-radius:12px;z-index:300;min-width:160px;padding:6px 0">
+    <div id="staff-menu-item" class="more-menu-item owner-only" style="display:none" onclick="showTab('staff');closeMoreMenu()">👥 พนักงาน</div>
+    <div class="more-menu-item" onclick="logout()">🚪 ออกจากระบบ</div>
   </div>
 
   <!-- Content -->
@@ -42,13 +39,6 @@
     <div id="dashboard-content"></div>
   </div>
   <div id="tab-invoices" class="tab-content">
-    <!-- Camera button + list -->
-    <div id="camera-bar">
-      <label for="file-input" class="camera-btn">
-        <span>📷 สแกนเอกสาร</span>
-      </label>
-      <input type="file" id="file-input" accept="image/*" capture="environment" style="display:none" onchange="handleFileSelect(event)">
-    </div>
     <div id="invoice-list"></div>
   </div>
   <div id="tab-wht" class="tab-content">
@@ -59,6 +49,36 @@
   </div>
   <div id="tab-staff" class="tab-content">
     <div id="staff-tab-content"></div>
+  </div>
+
+  <!-- Bottom nav -->
+  <div class="bottom-nav">
+    <button class="bottom-nav-item active" onclick="showTab('dashboard',this)" id="bnav-dashboard">
+      <span class="bnav-icon">📊</span>
+      <span class="bnav-label">ภาพรวม</span>
+    </button>
+    <button class="bottom-nav-item" onclick="showTab('invoices',this)" id="bnav-invoices">
+      <span class="bnav-icon">🧾</span>
+      <span class="bnav-label">ใบกำกับ</span>
+    </button>
+
+    <!-- FAB center -->
+    <div class="fab-wrap">
+      <label for="file-input" class="fab-btn">
+        <span style="font-size:28px;line-height:1">📷</span>
+      </label>
+      <input type="file" id="file-input" accept="image/*" capture="environment" style="display:none" onchange="handleFileSelect(event)">
+      <span class="bnav-label" style="margin-top:2px;font-size:10px;color:var(--text3)">สแกน</span>
+    </div>
+
+    <button class="bottom-nav-item" onclick="showTab('wht',this)" id="bnav-wht">
+      <span class="bnav-icon">📋</span>
+      <span class="bnav-label">WHT</span>
+    </button>
+    <button class="bottom-nav-item" onclick="showTab('companies',this)" id="bnav-companies">
+      <span class="bnav-icon">🏢</span>
+      <span class="bnav-label">บริษัท</span>
+    </button>
   </div>
 
   <!-- Analyze modal -->
@@ -80,21 +100,18 @@
 
 <script src="/js/staff.js"></script>
 <script>
-// ── State ─────────────────────────────────────────────────
 let currentUser = null;
 let companies = [];
 let currentImageBase64 = null;
 let currentMimeType = null;
 let currentAnalysisResult = null;
 
-// ── Init ──────────────────────────────────────────────────
 async function init() {
   try {
     const me = await fetch('/api/me').then(r => r.json());
     if (me.error) { location.href = '/login.html'; return; }
     currentUser = me;
 
-    // Update UI
     const avatar = document.getElementById('user-avatar');
     if (me.picture) { avatar.src = me.picture; avatar.style.display = ''; }
     document.getElementById('user-name').textContent = me.name || me.email;
@@ -102,7 +119,6 @@ async function init() {
     badge.textContent = me.role === 'owner' ? 'เจ้าของ' : 'พนักงาน';
     badge.style.display = '';
 
-    // Show owner-only tabs
     if (me.role === 'owner') {
       document.querySelectorAll('.owner-only').forEach(el => el.style.display = '');
     }
@@ -112,23 +128,35 @@ async function init() {
     loadInvoices();
     loadWHT();
 
-    if (me.role === 'owner') {
-      StaffModule.init(companies);
-    }
+    if (me.role === 'owner') StaffModule.init(companies);
   } catch (e) {
     location.href = '/login.html';
   }
 }
 
-// ── Tab navigation ─────────────────────────────────────────
-function showTab(name) {
+function showTab(name, btn) {
   document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
-  document.querySelectorAll('.nav-tab').forEach(el => el.classList.remove('active'));
+  document.querySelectorAll('.bottom-nav-item').forEach(el => el.classList.remove('active'));
   document.getElementById('tab-' + name).classList.add('active');
-  event.target.classList.add('active');
+  if (btn) btn.classList.add('active');
+  else {
+    const b = document.getElementById('bnav-' + name);
+    if (b) b.classList.add('active');
+  }
+  closeMoreMenu();
 }
 
-// ── Companies ──────────────────────────────────────────────
+function showMoreMenu() {
+  const m = document.getElementById('more-menu');
+  m.style.display = m.style.display === 'none' ? 'block' : 'none';
+}
+function closeMoreMenu() {
+  document.getElementById('more-menu').style.display = 'none';
+}
+document.addEventListener('click', e => {
+  if (!e.target.closest('#more-menu') && !e.target.closest('[onclick="showMoreMenu()"]')) closeMoreMenu();
+});
+
 async function loadCompanies() {
   const data = await fetch('/api/companies').then(r => r.json());
   companies = data;
@@ -138,16 +166,12 @@ async function loadCompanies() {
 function renderCompaniesTab() {
   const el = document.getElementById('companies-content');
   let html = '';
-
   if (currentUser?.role === 'owner') {
-    html += `<div class="section-header"><span>บริษัทของฉัน</span><button class="btn-primary" onclick="showAddCompany()">+ เพิ่ม</button></div>`;
+    html += `<div class="section-header"><span>บริษัทของฉัน</span><button class="btn-primary" style="flex:none;padding:6px 14px" onclick="showAddCompany()">+ เพิ่ม</button></div>`;
   } else {
     html += `<div class="section-header"><span>บริษัทที่เข้าถึงได้</span></div>`;
   }
-
-  if (!companies.length) {
-    html += '<div class="empty-state">ยังไม่มีบริษัท</div>';
-  }
+  if (!companies.length) html += '<div class="empty-state">ยังไม่มีบริษัท</div>';
   companies.forEach(c => {
     html += `
       <div class="company-card">
@@ -157,7 +181,6 @@ function renderCompaniesTab() {
         ${currentUser?.role === 'owner' ? `<button class="btn-small btn-danger" onclick="deleteCompany(${c.id})">ลบ</button>` : ''}
       </div>`;
   });
-
   if (currentUser?.role === 'owner') {
     html += `
       <div id="add-company-form" style="display:none;background:var(--card);border-radius:10px;padding:14px;margin-top:12px">
@@ -184,8 +207,7 @@ async function addCompany() {
   const branch = document.getElementById('c-branch').value.trim();
   if (!name || !tax_id || !address) return alert('กรอกข้อมูลให้ครบ');
   await fetch('/api/companies', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ name, tax_id, address, branch }),
   });
   await loadCompanies();
@@ -198,7 +220,6 @@ async function deleteCompany(id) {
   await loadCompanies();
 }
 
-// ── Dashboard ──────────────────────────────────────────────
 async function loadDashboard() {
   const [invoices, whts] = await Promise.all([
     fetch('/api/invoices').then(r => r.json()),
@@ -209,18 +230,14 @@ async function loadDashboard() {
   const mWht = whts.filter(w => (w.wht_date || '').startsWith(month));
   const totalVat = mInv.reduce((s, i) => s + parseFloat(i.vat || 0), 0);
   const totalWht = mWht.reduce((s, w) => s + parseFloat(w.wht_amount || 0), 0);
-
   const usageHtml = currentUser?.role === 'owner' ? await renderUsageCard() : '';
-
   document.getElementById('dashboard-content').innerHTML = `
     <div class="dashboard-grid">
       <div class="stat-card"><div class="stat-label">ใบกำกับเดือนนี้</div><div class="stat-value">${mInv.length}</div></div>
       <div class="stat-card"><div class="stat-label">WHT เดือนนี้</div><div class="stat-value">${mWht.length}</div></div>
       <div class="stat-card"><div class="stat-label">VAT รวม</div><div class="stat-value">${fmt(totalVat)}</div></div>
       <div class="stat-card"><div class="stat-label">WHT รวม</div><div class="stat-value">${fmt(totalWht)}</div></div>
-    </div>
-    ${usageHtml}
-  `;
+    </div>${usageHtml}`;
 }
 
 async function renderUsageCard() {
@@ -238,31 +255,25 @@ async function renderUsageCard() {
   } catch { return ''; }
 }
 
-// ── Invoices list ──────────────────────────────────────────
 async function loadInvoices() {
   const data = await fetch('/api/invoices').then(r => r.json());
   const el = document.getElementById('invoice-list');
-  if (!data.length) { el.innerHTML = '<div class="empty-state">ยังไม่มีใบกำกับภาษี</div>'; return; }
-  // Group by month
+  if (!data.length) { el.innerHTML = '<div class="empty-state">ยังไม่มีใบกำกับภาษี<br>กด 📷 ด้านล่างเพื่อสแกน</div>'; return; }
   const groups = {};
-  data.forEach(i => {
-    const m = (i.invoice_date || i.capture_date || '').slice(0, 7);
-    if (!groups[m]) groups[m] = [];
-    groups[m].push(i);
-  });
+  data.forEach(i => { const m = (i.invoice_date || i.capture_date || '').slice(0,7); if (!groups[m]) groups[m]=[]; groups[m].push(i); });
   let html = '';
   Object.keys(groups).sort().reverse().forEach(m => {
     const items = groups[m];
-    const total = items.reduce((s, i) => s + parseFloat(i.total || 0), 0);
+    const total = items.reduce((s,i) => s+parseFloat(i.total||0),0);
     html += `<div class="month-header">${m} — รวม ${fmt(total)} บาท</div>`;
     items.forEach(i => {
       html += `
         <div class="record-card">
           <div class="record-main">
-            <div class="record-seller">${i.seller_name || '-'}</div>
-            <div class="record-meta">${i.invoice_date || ''} · ${i.company_name || 'ไม่ระบุบริษัท'}</div>
-            ${i.uploaded_by_name ? `<div class="record-uploader">อัปโหลดโดย: ${i.uploaded_by_name}</div>` : ''}
-            ${i.address_mismatch ? '<div class="warn-badge">⚠️ ที่อยู่ไม่ตรง</div>' : ''}
+            <div class="record-seller">${i.seller_name||'-'}</div>
+            <div class="record-meta">${i.invoice_date||''} · ${i.company_name||'ไม่ระบุบริษัท'}</div>
+            ${i.uploaded_by_name?`<div class="record-uploader">โดย: ${i.uploaded_by_name}</div>`:''}
+            ${i.address_mismatch?'<div class="warn-badge">⚠️ ที่อยู่ไม่ตรง</div>':''}
           </div>
           <div class="record-amount">
             <div class="amount-total">${fmt(i.total)}</div>
@@ -277,34 +288,29 @@ async function loadInvoices() {
 
 async function deleteInvoice(id) {
   if (!confirm('ลบรายการนี้?')) return;
-  await fetch('/api/invoices/' + id, { method: 'DELETE' });
+  await fetch('/api/invoices/'+id, {method:'DELETE'});
   loadInvoices(); loadDashboard();
 }
 
-// ── WHT list ───────────────────────────────────────────────
 async function loadWHT() {
   const data = await fetch('/api/wht').then(r => r.json());
   const el = document.getElementById('wht-list');
-  if (!data.length) { el.innerHTML = '<div class="empty-state">ยังไม่มีใบหัก ณ ที่จ่าย</div>'; return; }
+  if (!data.length) { el.innerHTML = '<div class="empty-state">ยังไม่มีใบหัก ณ ที่จ่าย<br>กด 📷 ด้านล่างเพื่อสแกน</div>'; return; }
   const groups = {};
-  data.forEach(w => {
-    const m = (w.wht_date || '').slice(0, 7);
-    if (!groups[m]) groups[m] = [];
-    groups[m].push(w);
-  });
+  data.forEach(w => { const m=(w.wht_date||'').slice(0,7); if(!groups[m])groups[m]=[]; groups[m].push(w); });
   let html = '';
   Object.keys(groups).sort().reverse().forEach(m => {
     const items = groups[m];
-    const total = items.reduce((s, w) => s + parseFloat(w.wht_amount || 0), 0);
+    const total = items.reduce((s,w) => s+parseFloat(w.wht_amount||0),0);
     html += `<div class="month-header">${m} — WHT รวม ${fmt(total)} บาท</div>`;
     items.forEach(w => {
       html += `
         <div class="record-card">
           <div class="record-main">
-            <div class="record-seller">${w.payer_name || '-'}</div>
-            <div class="record-meta">${w.wht_date || ''} · ${w.company_name || 'ไม่ระบุ'}</div>
-            ${w.uploaded_by_name ? `<div class="record-uploader">อัปโหลดโดย: ${w.uploaded_by_name}</div>` : ''}
-            <div class="record-meta">${w.income_type || ''}</div>
+            <div class="record-seller">${w.payer_name||'-'}</div>
+            <div class="record-meta">${w.wht_date||''} · ${w.company_name||'ไม่ระบุ'}</div>
+            ${w.uploaded_by_name?`<div class="record-uploader">โดย: ${w.uploaded_by_name}</div>`:''}
+            <div class="record-meta">${w.income_type||''}</div>
           </div>
           <div class="record-amount">
             <div class="amount-total">${fmt(w.wht_amount)}</div>
@@ -319,19 +325,17 @@ async function loadWHT() {
 
 async function deleteWHT(id) {
   if (!confirm('ลบรายการนี้?')) return;
-  await fetch('/api/wht/' + id, { method: 'DELETE' });
+  await fetch('/api/wht/'+id, {method:'DELETE'});
   loadWHT(); loadDashboard();
 }
 
-// ── File & Analyze ─────────────────────────────────────────
 function handleFileSelect(e) {
   const file = e.target.files[0];
   if (!file) return;
   const reader = new FileReader();
   reader.onload = ev => {
     const full = ev.target.result;
-    const comma = full.indexOf(',');
-    currentImageBase64 = full.slice(comma + 1);
+    currentImageBase64 = full.slice(full.indexOf(',')+1);
     currentMimeType = file.type || 'image/jpeg';
     document.getElementById('preview-img').src = full;
     document.getElementById('analyze-status').textContent = 'กด "วิเคราะห์ด้วย AI" เพื่อเริ่ม';
@@ -350,44 +354,39 @@ async function runAnalyze() {
   document.getElementById('btn-analyze').disabled = true;
   try {
     const res = await fetch('/api/analyze', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ imageBase64: currentImageBase64, mimeType: currentMimeType }),
-    }).then(r => r.json());
-
-    if (res.error) { document.getElementById('analyze-status').textContent = '❌ ' + res.error; return; }
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({imageBase64:currentImageBase64, mimeType:currentMimeType}),
+    }).then(r=>r.json());
+    if (res.error) { document.getElementById('analyze-status').textContent = '❌ '+res.error; return; }
     currentAnalysisResult = res;
-
     const resultEl = document.getElementById('analyze-result');
     if (res.type === 'invoice') {
-      const company = companies.find(c => c.id === res.matched_company_id);
+      const company = companies.find(c=>c.id===res.matched_company_id);
       resultEl.innerHTML = `
         <div class="result-row"><span>ประเภท</span><span>ใบกำกับภาษี</span></div>
         <div class="result-row"><span>ผู้ขาย</span><span>${res.seller_name}</span></div>
         <div class="result-row"><span>วันที่</span><span>${res.invoice_date}</span></div>
         <div class="result-row"><span>รวม</span><span>${fmt(res.total)} บาท</span></div>
         <div class="result-row"><span>VAT</span><span>${fmt(res.vat)} บาท</span></div>
-        <div class="result-row"><span>บริษัทผู้ซื้อ</span><span ${!company ? 'style="color:var(--amber)"' : ''}>${company ? company.name : '⚠️ ไม่ตรงกับบริษัทในระบบ'}</span></div>
-        ${res.address_mismatch ? '<div class="result-row warn"><span>⚠️ ที่อยู่</span><span>ไม่ตรงกับบริษัท</span></div>' : ''}
-        ${res.is_duplicate ? '<div class="result-row warn"><span>⚠️</span><span>เอกสารซ้ำ!</span></div>' : ''}
-      `;
+        <div class="result-row"><span>บริษัทผู้ซื้อ</span><span ${!company?'style="color:var(--amber)"':''}>${company?company.name:'⚠️ ไม่ตรงกับบริษัทในระบบ'}</span></div>
+        ${res.address_mismatch?'<div class="result-row warn"><span>⚠️ ที่อยู่</span><span>ไม่ตรงกับบริษัท</span></div>':''}
+        ${res.is_duplicate?'<div class="result-row warn"><span>⚠️</span><span>เอกสารซ้ำ!</span></div>':''}`;
     } else {
-      const company = companies.find(c => c.id === res.matched_company_id);
+      const company = companies.find(c=>c.id===res.matched_company_id);
       resultEl.innerHTML = `
         <div class="result-row"><span>ประเภท</span><span>ใบหัก ณ ที่จ่าย</span></div>
         <div class="result-row"><span>ผู้จ่าย</span><span>${res.payer_name}</span></div>
         <div class="result-row"><span>วันที่</span><span>${res.wht_date}</span></div>
         <div class="result-row"><span>ยอดเงินได้</span><span>${fmt(res.income_amount)}</span></div>
         <div class="result-row"><span>ภาษีหัก</span><span>${fmt(res.wht_amount)}</span></div>
-        <div class="result-row"><span>บริษัท</span><span>${company ? company.name : '—'}</span></div>
-      `;
+        <div class="result-row"><span>บริษัท</span><span>${company?company.name:'—'}</span></div>`;
     }
     resultEl.style.display = '';
     document.getElementById('analyze-status').textContent = '✅ วิเคราะห์เสร็จแล้ว';
     document.getElementById('btn-save').style.display = '';
     if (res.is_duplicate) document.getElementById('btn-save').textContent = '⚠️ บันทึกทับซ้ำ?';
-  } catch (e) {
-    document.getElementById('analyze-status').textContent = '❌ ' + e.message;
+  } catch(e) {
+    document.getElementById('analyze-status').textContent = '❌ '+e.message;
   } finally {
     document.getElementById('btn-analyze').disabled = false;
   }
@@ -396,14 +395,10 @@ async function runAnalyze() {
 async function saveDocument() {
   if (!currentAnalysisResult) return;
   const r = currentAnalysisResult;
-  const body = r.type === 'invoice'
-    ? { ...r, image_data: currentImageBase64 }
-    : { ...r, image_data: currentImageBase64 };
-  const endpoint = r.type === 'invoice' ? '/api/invoices' : '/api/wht';
+  const endpoint = r.type==='invoice' ? '/api/invoices' : '/api/wht';
   await fetch(endpoint, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({...r, image_data: currentImageBase64}),
   });
   closeAnalyzeModal();
   loadInvoices(); loadWHT(); loadDashboard();
@@ -414,9 +409,8 @@ function closeAnalyzeModal() {
   currentImageBase64 = null; currentMimeType = null; currentAnalysisResult = null;
 }
 
-// ── Helpers ────────────────────────────────────────────────
 function fmt(n) {
-  return parseFloat(n || 0).toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return parseFloat(n||0).toLocaleString('th-TH',{minimumFractionDigits:2,maximumFractionDigits:2});
 }
 function logout() { location.href = '/auth/logout'; }
 

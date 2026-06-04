@@ -73,3 +73,83 @@ input:focus, textarea:focus { outline:none; border-color:var(--accent); }
 .result-row.warn{color:var(--amber)}
 
 .error-state{color:var(--red);text-align:center;padding:20px}
+
+/* ── Bottom Nav ── */
+.bottom-nav {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 64px;
+  background: var(--bg2);
+  border-top: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  padding-bottom: env(safe-area-inset-bottom);
+  z-index: 100;
+}
+
+.bottom-nav-item {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  background: none;
+  border: none;
+  color: var(--text3);
+  cursor: pointer;
+  padding: 6px 0;
+  transition: color .15s;
+}
+.bottom-nav-item.active { color: var(--accent); }
+.bottom-nav-item:hover { color: var(--text2); }
+
+.bnav-icon { font-size: 20px; line-height: 1; }
+.bnav-label { font-size: 10px; font-weight: 500; }
+
+/* ── FAB Scan Button ── */
+.fab-wrap {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+}
+
+.fab-btn {
+  width: 56px;
+  height: 56px;
+  background: var(--accent);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 4px 16px rgba(91,141,238,0.5);
+  margin-top: -20px;
+  transition: transform .15s, box-shadow .15s;
+}
+.fab-btn:active {
+  transform: scale(0.93);
+  box-shadow: 0 2px 8px rgba(91,141,238,0.4);
+}
+
+/* ── More menu ── */
+.more-menu-item {
+  padding: 11px 18px;
+  font-size: 14px;
+  cursor: pointer;
+  color: var(--text);
+  transition: background .1s;
+}
+.more-menu-item:hover { background: var(--bg3); }
+
+/* ── Tab padding adjustment for bottom nav ── */
+.tab-content { padding-bottom: 80px; }
+
+/* Remove old top nav */
+.nav-tabs { display: none; }
