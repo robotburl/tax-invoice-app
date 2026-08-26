@@ -2,31 +2,109 @@
 <html lang="th">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#0f1117">
 <title>Tax Manager — เข้าสู่ระบบ</title>
 <style>
-  *{margin:0;padding:0;box-sizing:border-box}
-  body{font-family:-apple-system,sans-serif;background:#0f1117;color:#e8eaf6;min-height:100vh;display:flex;align-items:center;justify-content:center}
-  .card{background:#181c27;border:1px solid #3a4060;border-radius:16px;padding:36px 28px;width:100%;max-width:360px;text-align:center}
-  .logo{width:64px;height:64px;background:#5b8dee;border-radius:16px;display:flex;align-items:center;justify-content:center;font-size:32px;margin:0 auto 20px}
-  h1{font-size:20px;font-weight:700;margin-bottom:6px}
-  p{font-size:13px;color:#9fa8c4;margin-bottom:28px;line-height:1.6}
-  .btn-google{display:flex;align-items:center;justify-content:center;gap:10px;width:100%;padding:13px;background:#fff;color:#222;border:none;border-radius:10px;font-size:15px;font-weight:600;cursor:pointer;text-decoration:none}
-  .btn-google:hover{background:#f0f0f0}
-  .note{font-size:12px;color:#6b75a0;margin-top:20px}
+  *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:#0f1117;color:#e8eaf6;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px}
+  .card{background:#181c27;border:1px solid #3a4060;border-radius:16px;padding:32px 24px;width:100%;max-width:340px;text-align:center}
+  .logo{width:64px;height:64px;background:#5b8dee;border-radius:16px;display:flex;align-items:center;justify-content:center;font-size:32px;margin:0 auto 18px}
+  h1{font-size:19px;font-weight:700;margin-bottom:4px}
+  .sub{font-size:13px;color:#9fa8c4;margin-bottom:24px}
+  .dots{display:flex;gap:14px;justify-content:center;margin-bottom:8px;height:18px}
+  .dot{width:14px;height:14px;border-radius:50%;border:2px solid #4a5480;transition:all .15s}
+  .dot.on{background:#5b8dee;border-color:#5b8dee;transform:scale(1.1)}
+  .msg{font-size:13px;min-height:20px;margin-bottom:16px;color:#ff6b6b}
+  .pad{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+  .key{background:#222736;border:1px solid #3a4060;border-radius:12px;color:#e8eaf6;font-size:24px;font-weight:600;padding:16px 0;cursor:pointer;user-select:none;transition:background .1s}
+  .key:active{background:#2e3548}
+  .key.blank{background:none;border:none;cursor:default}
+  .key.fn{font-size:15px;color:#9fa8c4}
+  body.shake .card{animation:sh .4s}
+  @keyframes sh{0%,100%{transform:translateX(0)}25%{transform:translateX(-9px)}75%{transform:translateX(9px)}}
 </style>
 </head>
 <body>
 <div class="card">
   <div class="logo">📄</div>
-  <h1>Tax / WHT Manager</h1>
-  <p>จัดการใบกำกับภาษีและใบหัก ณ ที่จ่าย<br>สำหรับหลายบริษัทในที่เดียว</p>
-  <a href="/auth/google" class="btn-google">
-    <svg width="20" height="20" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.18 1.48-4.97 2.34-8.16 2.34-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>
-    เข้าสู่ระบบด้วย Google
-  </a>
-  <div class="note">ระบบนี้ใช้สำหรับธุรกิจเท่านั้น<br>ข้อมูลของคุณจะถูกเก็บอย่างปลอดภัย</div>
+  <h1>Tax Invoice Manager</h1>
+  <div class="sub">ใส่รหัส 4 หลักเพื่อเข้าสู่ระบบ</div>
+  <div class="dots" id="dots">
+    <div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div>
+  </div>
+  <div class="msg" id="msg"></div>
+  <div class="pad" id="pad">
+    <button class="key" data-k="1">1</button>
+    <button class="key" data-k="2">2</button>
+    <button class="key" data-k="3">3</button>
+    <button class="key" data-k="4">4</button>
+    <button class="key" data-k="5">5</button>
+    <button class="key" data-k="6">6</button>
+    <button class="key" data-k="7">7</button>
+    <button class="key" data-k="8">8</button>
+    <button class="key" data-k="9">9</button>
+    <button class="key blank"></button>
+    <button class="key" data-k="0">0</button>
+    <button class="key fn" data-k="del">ลบ</button>
+  </div>
 </div>
+<script>
+(function () {
+  var pin = '', busy = false;
+  var dots = document.querySelectorAll('#dots .dot');
+  var msg = document.getElementById('msg');
+
+  function render() {
+    dots.forEach(function (d, i) { d.classList.toggle('on', i < pin.length); });
+  }
+
+  function fail(text) {
+    msg.textContent = text;
+    document.body.classList.add('shake');
+    setTimeout(function () { document.body.classList.remove('shake'); }, 400);
+    pin = ''; render();
+  }
+
+  function submit() {
+    if (busy) return;
+    busy = true;
+    msg.textContent = '';
+    fetch('/auth/pin', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ pin: pin }),
+      credentials: 'same-origin'
+    }).then(function (r) {
+      return r.json().then(function (d) { return { ok: r.ok, d: d }; });
+    }).then(function (res) {
+      busy = false;
+      if (res.ok) { location.href = '/'; return; }
+      fail(res.d.error || 'รหัสไม่ถูกต้อง');
+    }).catch(function () {
+      busy = false;
+      fail('เชื่อมต่อไม่ได้ ลองใหม่');
+    });
+  }
+
+  function press(k) {
+    if (busy) return;
+    if (k === 'del') { pin = pin.slice(0, -1); render(); return; }
+    if (pin.length >= 4) return;
+    pin += k; render();
+    if (pin.length === 4) setTimeout(submit, 120);
+  }
+
+  document.getElementById('pad').addEventListener('click', function (e) {
+    var btn = e.target.closest('[data-k]');
+    if (btn) press(btn.dataset.k);
+  });
+
+  window.addEventListener('keydown', function (e) {
+    if (e.key >= '0' && e.key <= '9') press(e.key);
+    else if (e.key === 'Backspace') press('del');
+  });
+})();
+</script>
 </body>
 </html>

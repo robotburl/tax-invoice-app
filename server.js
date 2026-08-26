@@ -9,39 +9,48 @@ const path = require('path');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// Trust Railway proxy (required for secure cookies)
 app.set('trust proxy', 1);
 
+// PostgreSQL pool
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
+  // Railway ต้องใช้ SSL แต่ Postgres ใน Docker network บน NAS ไม่ได้เปิด SSL
+  ssl: process.env.DB_SSL === 'true' ? { rejectUnauthorized: false } : false,
 });
 
+// Session store
 const PgSession = connectPgSimple(session);
 
+// Middleware
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
-app.use(express.static(path.join(__dirname, 'public'), { setHeaders: (res, fp) => { if (fp.endsWith('.html')) res.setHeader('Cache-Control', 'no-store'); } }));
+app.use(express.static(path.join(__dirname, 'public')));
 
+// Session
 app.use(session({
   store: new PgSession({
     pool,
     tableName: 'user_sessions',
     createTableIfMissing: true,
   }),
-  secret: process.env.SESSION_SECRET || 'tax-secret-change-me',
+  secret: process.env.SESSION_SECRET || 'tax-invoice-secret-change-me',
   resave: false,
   saveUninitialized: false,
   cookie: {
     secure: process.env.NODE_ENV === 'production',
     httpOnly: true,
-    maxAge: 30 * 24 * 60 * 60 * 1000,
-    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+    maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days — stay logged in
+    // 'lax' เพราะเว็บกับ API อยู่โดเมนเดียวกัน (Safari/iOS ทิ้งคุกกี้ SameSite=None)
+    sameSite: 'lax',
   },
 }));
 
+// Passport
 app.use(passport.initialize());
 app.use(passport.session());
 
+// Init DB tables
 async function initDB() {
   await pool.query(`
     CREATE TABLE IF NOT EXISTS users (
@@ -50,14 +59,12 @@ async function initDB() {
       email TEXT UNIQUE NOT NULL,
       name TEXT,
       picture TEXT,
-      role TEXT NOT NULL DEFAULT 'owner',
-      owner_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
       created_at TIMESTAMPTZ DEFAULT NOW()
     );
 
     CREATE TABLE IF NOT EXISTS companies (
       id SERIAL PRIMARY KEY,
-      owner_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
       name TEXT NOT NULL,
       tax_id TEXT NOT NULL,
       address TEXT NOT NULL,
@@ -65,28 +72,9 @@ async function initDB() {
       created_at TIMESTAMPTZ DEFAULT NOW()
     );
 
-    CREATE TABLE IF NOT EXISTS staff_access (
-      id SERIAL PRIMARY KEY,
-      staff_user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-      company_id INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
-      UNIQUE(staff_user_id, company_id)
-    );
-
-    CREATE TABLE IF NOT EXISTS invitations (
-      id SERIAL PRIMARY KEY,
-      owner_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-      invitee_email TEXT NOT NULL,
-      token TEXT UNIQUE NOT NULL,
-      company_ids INTEGER[] NOT NULL DEFAULT '{}',
-      used BOOLEAN DEFAULT FALSE,
-      created_at TIMESTAMPTZ DEFAULT NOW(),
-      expires_at TIMESTAMPTZ DEFAULT NOW() + INTERVAL '7 days'
-    );
-
     CREATE TABLE IF NOT EXISTS invoices (
       id SERIAL PRIMARY KEY,
-      owner_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-      uploaded_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
       company_id INTEGER REFERENCES companies(id) ON DELETE SET NULL,
       seller_name TEXT,
       seller_tax TEXT,
@@ -108,8 +96,7 @@ async function initDB() {
 
     CREATE TABLE IF NOT EXISTS wht_records (
       id SERIAL PRIMARY KEY,
-      owner_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-      uploaded_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
       company_id INTEGER REFERENCES companies(id) ON DELETE SET NULL,
       payer_name TEXT,
       payer_tax TEXT,
@@ -118,75 +105,39 @@ async function initDB() {
       wht_type TEXT,
       income_type TEXT,
       income_amount NUMERIC(15,2),
+      wht_rate NUMERIC(5,2),
       wht_amount NUMERIC(15,2),
       wht_date TEXT,
+      capture_date TIMESTAMPTZ DEFAULT NOW(),
       image_data TEXT,
       notes TEXT,
       created_at TIMESTAMPTZ DEFAULT NOW()
     );
-
-    CREATE TABLE IF NOT EXISTS api_usage (
-      id SERIAL PRIMARY KEY,
-      owner_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-      uploaded_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
-      month TEXT NOT NULL,
-      input_tokens BIGINT DEFAULT 0,
-      output_tokens BIGINT DEFAULT 0,
-      cost_usd NUMERIC(10,6) DEFAULT 0,
-      scan_count INTEGER DEFAULT 0,
-      UNIQUE(owner_id, month)
-    );
   `);
-
-  // Migrate existing data: add missing columns if upgrading from old schema
-  await pool.query(`
-    ALTER TABLE users ADD COLUMN IF NOT EXISTS role TEXT NOT NULL DEFAULT 'owner';
-    ALTER TABLE users ADD COLUMN IF NOT EXISTS owner_id INTEGER REFERENCES users(id) ON DELETE CASCADE;
-    ALTER TABLE invoices ADD COLUMN IF NOT EXISTS owner_id INTEGER REFERENCES users(id);
-    ALTER TABLE invoices ADD COLUMN IF NOT EXISTS uploaded_by INTEGER REFERENCES users(id);
-    ALTER TABLE wht_records ADD COLUMN IF NOT EXISTS owner_id INTEGER REFERENCES users(id);
-    ALTER TABLE wht_records ADD COLUMN IF NOT EXISTS uploaded_by INTEGER REFERENCES users(id);
-  `);
-
-  // Backfill owner_id for existing rows (user_id → owner_id)
-  await pool.query(`
-    UPDATE invoices SET owner_id = user_id WHERE owner_id IS NULL AND user_id IS NOT NULL;
-    UPDATE wht_records SET owner_id = user_id WHERE owner_id IS NULL AND user_id IS NOT NULL;
-  `).catch(() => {});
-
   console.log('✅ Database tables ready');
 }
 
+// Passport config
 require('./routes/auth')(passport, pool);
-app.use('/auth', require('./routes/authRoutes')(passport));
+
+// Routes
+app.use('/auth', require('./routes/authRoutes')(passport, pool));
 app.use('/api', require('./routes/api')(pool));
 
-// Invitation accept route
-app.get('/invite/:token', async (req, res) => {
-  const { token } = req.params;
-  try {
-    const inv = await pool.query(
-      `SELECT * FROM invitations WHERE token=$1 AND used=FALSE AND expires_at > NOW()`,
-      [token]
-    );
-    if (!inv.rows.length) return res.send('<h2>ลิงก์เชิญหมดอายุหรือถูกใช้ไปแล้ว</h2>');
-    req.session.pendingInviteToken = token;
-    res.redirect('/auth/google');
-  } catch (e) {
-    res.status(500).send('Server error');
-  }
-});
-
+// Serve app (protected)
 app.get('/', (req, res) => {
-  if (!req.isAuthenticated()) return res.sendFile(path.join(__dirname, 'public', 'login.html'));
+  if (!req.isAuthenticated()) {
+    return res.sendFile(path.join(__dirname, 'public', 'login.html'));
+  }
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
+// Health check
 app.get('/health', (req, res) => res.json({ status: 'ok' }));
 
 initDB().then(() => {
   app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
 }).catch(err => {
-  console.error('DB init failed:', err);
+  console.error('DB init error:', err);
   process.exit(1);
 });

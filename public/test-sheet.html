@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sheet Test</title>
+<style>
+body{background:#111;color:#fff;font-family:sans-serif;padding:20px}
+button{display:block;width:100%;padding:16px;margin:10px 0;font-size:16px;border-radius:10px;border:none;cursor:pointer;background:#5b8dee;color:#fff}
+.sheet{display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:500}
+.sheet-inner{position:absolute;bottom:0;left:0;right:0;background:#1e2335;border-radius:20px 20px 0 0;padding:16px}
+label.row{display:flex;align-items:center;gap:12px;padding:14px 16px;background:#252a3d;border-radius:12px;margin-bottom:8px;cursor:pointer;font-size:15px}
+#log{background:#222;padding:10px;border-radius:8px;font-size:12px;margin-top:10px;min-height:60px}
+</style>
+</head>
+<body>
+<h2>Sheet Input Test</h2>
+<button onclick="document.getElementById('sheet').style.display='block'">เปิด Sheet</button>
+
+<div class="sheet" id="sheet">
+  <div class="sheet-inner">
+    <p style="text-align:center;color:#9fa8c4;font-size:13px;margin-bottom:12px">เลือกรูป</p>
+    
+    <!-- Method A: label for= with input outside -->
+    <label class="row" for="inp-camera">
+      📷 ถ่ายรูป (label for= outside)
+    </label>
+    <input type="file" id="inp-camera" accept="image/*" capture="environment" 
+      style="position:fixed;top:-300px;left:-300px;width:1px;height:1px"
+      onchange="log('Camera: ' + this.files[0]?.name)">
+    
+    <!-- Method B: label with input inside -->
+    <label class="row">
+      🖼 คลังรูป (input inside label)
+      <input type="file" accept="image/*" style="display:none"
+        onchange="log('Gallery: ' + this.files[0]?.name)">
+    </label>
+
+    <button onclick="document.getElementById('sheet').style.display='none'" 
+      style="background:#2d3350">ยกเลิก</button>
+  </div>
+</div>
+
+<div id="log">ผลลัพธ์จะแสดงที่นี่...</div>
+
+<script>
+function log(msg) {
+  document.getElementById('log').innerHTML += '<br>' + new Date().toLocaleTimeString() + ': ' + msg;
+}
+</script>
+</body>
+</html>

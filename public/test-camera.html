@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Camera Test</title>
+<style>
+body{font-family:sans-serif;padding:20px;background:#111;color:#fff}
+button{display:block;width:100%;padding:16px;margin:10px 0;font-size:16px;border-radius:10px;border:none;cursor:pointer}
+.b1{background:#5b8dee;color:#fff}
+.b2{background:#444;color:#fff}
+.b3{background:#2d6a4f;color:#fff}
+img{max-width:100%;border-radius:8px;margin-top:10px}
+#log{background:#222;padding:10px;border-radius:8px;font-size:12px;margin-top:10px;white-space:pre-wrap}
+</style>
+</head>
+<body>
+<h2>📷 Camera Test - iOS</h2>
+
+<button class="b1" onclick="document.getElementById('i1').click()">
+  Test 1: accept=image/* capture=environment
+</button>
+<input id="i1" type="file" accept="image/*" capture="environment" style="display:none" onchange="show(this,'Test1')">
+
+<button class="b2" onclick="document.getElementById('i2').click()">
+  Test 2: accept=image/* (no capture)
+</button>
+<input id="i2" type="file" accept="image/*" style="display:none" onchange="show(this,'Test2')">
+
+<button class="b3" onclick="document.getElementById('i3').click()">
+  Test 3: accept=image/jpeg,image/png,image/heic
+</button>
+<input id="i3" type="file" accept="image/jpeg,image/png,image/heic" style="display:none" onchange="show(this,'Test3')">
+
+<div id="log">กดปุ่มทดสอบ...</div>
+<img id="preview" style="display:none">
+
+<script>
+function show(input, name) {
+  const file = input.files[0];
+  if (!file) { log(name + ': ไม่มีไฟล์'); return; }
+  log(name + ': ✓ ' + file.name + ' (' + file.type + ', ' + Math.round(file.size/1024) + 'KB)');
+  const reader = new FileReader();
+  reader.onload = e => {
+    document.getElementById('preview').src = e.target.result;
+    document.getElementById('preview').style.display = 'block';
+  };
+  reader.readAsDataURL(file);
+}
+function log(msg) {
+  document.getElementById('log').textContent += '\n' + msg;
+}
+log('UA: ' + navigator.userAgent.slice(0,80));
+</script>
+</body>
+</html>
