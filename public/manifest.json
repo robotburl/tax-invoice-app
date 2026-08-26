@@ -1,26 +1,29 @@
 {
-  "name": "Tax Invoice Manager",
-  "short_name": "Tax Invoice",
+  "name": "อีสานพัฒนา — ใบกำกับภาษี",
+  "short_name": "อีสานพัฒนา",
   "description": "ระบบจัดการใบกำกับภาษี",
   "start_url": "/",
   "display": "standalone",
   "orientation": "portrait",
-  "background_color": "#0f1117",
+  "background_color": "#ffffff",
   "theme_color": "#0f1117",
   "icons": [
     {
       "src": "/icons/icon-192.png",
       "sizes": "192x192",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
     },
     {
       "src": "/icons/icon-512.png",
       "sizes": "512x512",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
     }
   ],
-  "categories": ["finance", "productivity"],
+  "categories": [
+    "finance",
+    "productivity"
+  ],
   "lang": "th"
 }
