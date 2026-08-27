@@ -1,5 +1,5 @@
-const CACHE = 'tax-invoice-nas-2026-08-28b';
-const STATIC = ['/login.html', '/manifest.json', '/css/app.css', '/js/app.js',
+const CACHE = 'tax-invoice-nas-2026-08-28c';
+const STATIC = ['/login.html', '/manifest.json',
   '/icons/icon-180.png', '/icons/icon-192.png', '/icons/icon-512.png'];
 
 self.addEventListener('install', e => {

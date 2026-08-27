@@ -25,7 +25,12 @@ const PgSession = connectPgSimple(session);
 // Middleware
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
-app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.static(path.join(__dirname, 'public'), {
+  setHeaders: (res, filePath) => {
+    // index/login ห้ามแคช เพื่อให้ได้เลขเวอร์ชันของ JS/CSS ล่าสุดเสมอ
+    if (filePath.endsWith('.html')) res.setHeader('Cache-Control', 'no-store');
+  },
+}));
 
 // Session
 app.use(session({
