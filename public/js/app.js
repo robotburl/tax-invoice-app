@@ -292,7 +292,7 @@ function renderCompanies() {
           <div class="company-avatar">🏢</div>
           <div><div class="company-name">${esc(c.name)}</div><div class="company-tax">${esc(c.tax_id)}</div></div>
         </div>
-        <button class="btn btn-ghost btn-sm" onclick="deleteCompany(${c.id})"><i class="fa-solid fa-trash"></i></button>
+
       </div>
       <div class="company-address">${esc(c.address)}</div>
       ${c.branch ? `<div style="font-size:11px;color:var(--text3);margin-top:4px">📍 ${esc(c.branch)}</div>` : ''}
@@ -321,6 +321,10 @@ async function saveCompany() {
 }
 
 async function deleteCompany(id) {
+  // ระบบล็อกการลบไว้ — เอกสารและข้อมูลบัญชีต้องเก็บรักษา
+  toast('ระบบล็อกการลบไว้ หากจำเป็นต้องลบให้แจ้งผู้ดูแลระบบ', true);
+  return;
+  // eslint-disable-next-line no-unreachable
   if (!confirm('ลบบริษัทนี้?')) return;
   await fetch('/api/companies/' + id, { method: 'DELETE' });
   companies = companies.filter(c => c.id !== id);

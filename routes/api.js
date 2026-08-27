@@ -52,6 +52,11 @@ module.exports = (pool) => {
 
   // DELETE company
   router.delete('/companies/:id', async (req, res) => {
+    return res.status(403).json({
+      error: 'ระบบล็อกการลบไว้ — เอกสารทางบัญชีต้องเก็บรักษาไว้ หากจำเป็นต้องลบจริงให้ทำจากหลังบ้าน',
+    });
+
+    /* eslint-disable no-unreachable */
     try {
       await pool.query(
         'DELETE FROM companies WHERE id = $1 AND user_id = $2',
@@ -189,6 +194,11 @@ module.exports = (pool) => {
 
   // DELETE invoice
   router.delete('/invoices/:id', async (req, res) => {
+    return res.status(403).json({
+      error: 'ระบบล็อกการลบไว้ — เอกสารทางบัญชีต้องเก็บรักษาไว้ หากจำเป็นต้องลบจริงให้ทำจากหลังบ้าน',
+    });
+
+    /* eslint-disable no-unreachable */
     try {
       await pool.query(
         'DELETE FROM invoices WHERE id = $1 AND user_id = $2',
@@ -395,6 +405,11 @@ ${coList}` },
   });
 
   router.delete('/wht/:id', async (req, res) => {
+    return res.status(403).json({
+      error: 'ระบบล็อกการลบไว้ — เอกสารทางบัญชีต้องเก็บรักษาไว้ หากจำเป็นต้องลบจริงให้ทำจากหลังบ้าน',
+    });
+
+    /* eslint-disable no-unreachable */
     try {
       await pool.query('DELETE FROM wht_records WHERE id = $1 AND user_id = $2', [req.params.id, req.user.id]);
       res.json({ ok: true });
