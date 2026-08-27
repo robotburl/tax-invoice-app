@@ -123,7 +123,16 @@ module.exports = (pool) => {
         buyer_name, buyer_tax, buyer_address, buyer_branch,
         items, price, vat, total, invoice_date,
         image_data, address_mismatch, cost_type, notes,
+        is_tax_invoice, doc_title,
       } = req.body;
+
+      // เอกสารที่ไม่ใช่ใบกำกับภาษี (ใบแจ้งหนี้/ใบส่งสินค้า/ใบเสนอราคา) เคลม VAT ไม่ได้ — ไม่บันทึก
+      if (is_tax_invoice === false) {
+        return res.status(422).json({
+          error: 'เอกสารนี้ไม่ใช่ใบกำกับภาษี จึงใช้ในระบบภาษีไม่ได้',
+          docTitle: doc_title || '',
+        });
+      }
 
       // Verify company belongs to user
       if (company_id) {
@@ -233,9 +242,18 @@ module.exports = (pool) => {
 - ถ้าเป็น ใบกำกับภาษี / ใบเสร็จรับเงิน / TAX INVOICE → docType = "invoice"
 - ถ้าเป็น ใบหัก ณ ที่จ่าย / ภงด.1/3/53 / WHT / Withholding Tax → docType = "wht"
 
+ขั้นตอน 1.5 (สำคัญมาก): อ่าน "หัวเอกสาร" ตามตัวอักษรที่พิมพ์อยู่จริง แล้วระบุ 2 ค่านี้
+- docTitle = ข้อความหัวเอกสารที่เห็นจริง ๆ เช่น "ใบกำกับภาษี/ใบเสร็จรับเงิน", "ใบส่งสินค้า/ใบแจ้งหนี้", "ใบเสนอราคา"
+- isTaxInvoice = true เฉพาะเมื่อหัวเอกสารมีคำว่า "ใบกำกับภาษี" หรือ "TAX INVOICE" (รวมแบบ "ใบเสร็จรับเงิน/ใบกำกับภาษี", "ใบกำกับภาษีอย่างย่อ")
+  ถ้าหัวเอกสารเป็น ใบแจ้งหนี้ / ใบวางบิล / ใบส่งสินค้า / ใบเสนอราคา / ใบสั่งซื้อ / Invoice / Delivery Note / Quotation / Purchase Order
+  โดยไม่มีคำว่า "ใบกำกับภาษี" → isTaxInvoice = false (เอกสารพวกนี้ใช้เคลม VAT ไม่ได้ แม้จะมีบรรทัด VAT 7% อยู่ก็ตาม)
+  ห้ามเดาว่าเป็นใบกำกับภาษีเพียงเพราะมีการคำนวณ VAT — ต้องเห็นคำว่า "ใบกำกับภาษี" จริง ๆ เท่านั้น
+
 ขั้นตอน 2: ดึงข้อมูลตาม docType และตอบในรูปแบบ JSON นี้:
 {
   "docType": "invoice หรือ wht",
+  "docTitle": "",
+  "isTaxInvoice": true,
   "sellerName":"","sellerTax":"",
   "buyerName":"","buyerTax":"","buyerAddress":"","buyerBranch":"",
   "items":"","price":"","vat":"","total":"","invoiceDate":"",
@@ -305,7 +323,13 @@ ${coList}` },
         }
       }
 
-      res.json({ extracted, matchedCompany, userCompanies, addressCorrected, docType: extracted.docType || 'invoice' });
+      const isTaxInvoice = extracted.isTaxInvoice !== false;
+      res.json({
+        extracted, matchedCompany, userCompanies, addressCorrected,
+        docType: extracted.docType || 'invoice',
+        isTaxInvoice,
+        docTitle: extracted.docTitle || '',
+      });
     } catch (err) {
       res.status(500).json({ error: err.message });
     }

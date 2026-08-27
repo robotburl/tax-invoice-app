@@ -429,6 +429,7 @@ async function confirmRecord() {
       showDuplicateWarning(data.message, 'capture-modal');
       return;
     }
+    if (r.status === 422) { toast(data.error || 'เอกสารนี้ไม่ใช่ใบกำกับภาษี', true); return; }
     if (!r.ok) { toast(data.error || 'บันทึกไม่สำเร็จ', true); return; }
     invoices.unshift(data);
     closeModal('capture-modal');
@@ -476,8 +477,60 @@ function showDuplicateWarning(message, modalId) {
   popup.onclick = e => { if (e.target === popup) popup.remove(); };
 }
 
+/* ─── เอกสารไม่ใช่ใบกำกับภาษี ─── */
+function showNotTaxInvoice(ex, company, docTitle) {
+  const existing = document.getElementById('status-popup');
+  if (existing) existing.remove();
+
+  const row = (k, v) => `<div class="field-row"><span class="field-key">${k}</span><span class="field-val">${esc(v || '-')}</span></div>`;
+
+  const popup = document.createElement('div');
+  popup.id = 'status-popup';
+  popup.style.cssText = 'position:fixed;inset:0;z-index:300;display:flex;align-items:flex-end;justify-content:center;background:rgba(0,0,0,.65)';
+  popup.innerHTML = `
+    <div style="background:var(--bg2);border:1px solid #4a1a1a;border-radius:20px 20px 0 0;width:100%;max-width:600px;padding:20px;padding-bottom:max(20px,env(safe-area-inset-bottom));animation:slideUp .25s ease">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
+        <div style="font-size:26px">🚫</div>
+        <div>
+          <div style="font-weight:700;font-size:16px;color:var(--red)">ใช้ในระบบภาษีไม่ได้</div>
+          <div style="font-size:12px;color:var(--text2)">เอกสารนี้ไม่ใช่ใบกำกับภาษี — ไม่บันทึก</div>
+        </div>
+        <button onclick="document.getElementById('status-popup').remove()" style="margin-left:auto;background:none;border:none;color:var(--text2);font-size:20px;cursor:pointer;padding:4px">✕</button>
+      </div>
+
+      <div style="background:var(--red-bg);border:1px solid #4a1a1a;border-radius:10px;padding:12px;font-size:13px;color:var(--text);line-height:1.7;margin-bottom:12px">
+        อ่านหัวเอกสารได้ว่า <b style="color:var(--red)">${esc(docTitle || 'ไม่ใช่ใบกำกับภาษี')}</b><br>
+        <span style="font-size:12px;color:var(--text2)">เอกสารประเภทใบแจ้งหนี้ ใบวางบิล ใบส่งสินค้า และใบเสนอราคา นำมาเคลมภาษีซื้อไม่ได้ แม้จะมีบรรทัด VAT 7% ก็ตาม — ต้องขอ<b>ใบกำกับภาษี</b>จากผู้ขายเมื่อชำระเงินแล้ว</span>
+      </div>
+
+      <div class="extracted-section" style="margin-bottom:6px">
+        <div class="extracted-section-title">ข้อมูลที่อ่านได้จากเอกสาร</div>
+        ${row('ผู้ขาย', ex.sellerName)}
+        ${row('เลขภาษีผู้ขาย', ex.sellerTax)}
+        ${row('ผู้ซื้อ', ex.buyerName)}
+        ${row('เลขภาษีผู้ซื้อ', ex.buyerTax)}
+        ${row('ยอดรวม', ex.total ? fmt(ex.total) + ' ฿' : '')}
+        ${row('VAT', ex.vat ? fmt(ex.vat) + ' ฿' : '')}
+        ${row('วันที่', ex.invoiceDate)}
+        ${company ? row('ตรงกับบริษัท', company.name) : ''}
+      </div>
+
+      <button onclick="document.getElementById('status-popup').remove();closeModal('capture-modal')" class="btn btn-ghost" style="width:100%;margin-top:12px">เข้าใจแล้ว</button>
+    </div>`;
+  document.body.appendChild(popup);
+
+  const cb = document.getElementById('confirm-btn');
+  if (cb) cb.style.display = 'none';
+}
+
 /* ─── STATUS POPUP ─── */
 function showInvoiceStatus(ex, company, addrOk, taxOk, nameOk, result={}) {
+  // เอกสารที่ไม่ใช่ใบกำกับภาษี (ใบแจ้งหนี้/ใบส่งสินค้า/ใบเสนอราคา) เคลม VAT ไม่ได้ → ไม่ให้บันทึก
+  if (result.isTaxInvoice === false) {
+    showNotTaxInvoice(ex, company, result.docTitle);
+    return;
+  }
+
   const issues = [];
   const ok = [];
 
@@ -1122,6 +1175,11 @@ function displayInvoiceResult(result) {
     </div>
     ${!addrOk && ex.buyerAddress ? `<div style="background:var(--amber-bg);border:1px solid var(--amber);border-radius:8px;padding:10px;font-size:12px;color:var(--amber);margin-top:4px">⚠️ ที่อยู่ไม่ตรง — จะบันทึกพร้อมหมายเหตุ</div>` : ''}
   </div>`;
+
+  if (pendingRecord) {
+    pendingRecord.is_tax_invoice = result.isTaxInvoice !== false;
+    pendingRecord.doc_title = result.docTitle || '';
+  }
 
   showInvoiceStatus(ex, company, addrOk, taxOk, nameOk, result);
 }
