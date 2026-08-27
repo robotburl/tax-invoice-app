@@ -28,8 +28,8 @@
     </div>
     <div class="topbar-right">
       <div class="user-info" id="user-info"></div>
-      <button class="btn btn-ghost btn-sm" onclick="logout()" title="ออกจากระบบ">
-        <i class="fa-solid fa-right-from-bracket"></i>
+      <button class="btn btn-ghost btn-sm" onclick="openAccountMenu()" title="เมนู">
+        <i class="fa-solid fa-ellipsis-vertical"></i>
       </button>
     </div>
   </div>
@@ -51,9 +51,6 @@
     </button>
     <button class="nav-item" onclick="switchTab('companies')" data-tab="companies">
       <i class="fa-solid fa-building"></i><span>บริษัท</span>
-    </button>
-    <button class="nav-item" id="nav-users" onclick="switchTab('users')" data-tab="users" style="display:none">
-      <i class="fa-solid fa-users"></i><span>ผู้ใช้</span>
     </button>
   </nav>
 

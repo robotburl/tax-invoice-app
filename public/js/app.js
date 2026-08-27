@@ -27,9 +27,6 @@ async function fetchUser() {
     const r = await fetch('/auth/me');
     if (!r.ok) { location.href = '/login.html'; return; }
     currentUser = await r.json();
-    // แท็บจัดการผู้ใช้เปิดให้เฉพาะผู้ดูแลระบบ
-    const navUsers = document.getElementById('nav-users');
-    if (navUsers) navUsers.style.display = currentUser.role === 'admin' ? '' : 'none';
     const ui = document.getElementById('user-info');
     ui.innerHTML = currentUser.picture
       ? `<img src="${currentUser.picture}" class="user-avatar" referrerpolicy="no-referrer"><span class="user-name">${esc(currentUser.name)}</span>`
@@ -68,7 +65,10 @@ function switchTab(tab) {
   if (tab === 'records') { activeDocFilter='all'; renderRecords(); }
   if (tab === 'companies') renderCompanies();
   if (tab === 'report') { renderReport(); renderImageDownloadList(); }
-  if (tab === 'users') renderUsers();
+  if (tab === 'users') {
+    if (!currentUser || currentUser.role !== 'admin') { switchTab('dashboard'); return; }
+    renderUsers();
+  }
   document.querySelector('.content').scrollTop = 0;
 }
 
@@ -1451,6 +1451,87 @@ function uploaderLine(rec) {
   return `<div style="font-size:10px;color:var(--text3);margin-top:5px">
     <i class="fa-solid fa-user" style="font-size:9px"></i> สแกนโดย ${esc(who)}${isMe ? ' (คุณ)' : ''}
   </div>`;
+}
+
+
+/* ─── เมนูบัญชี (มุมขวาบน) ─── */
+function openAccountMenu() {
+  const existing = document.getElementById('acct-menu');
+  if (existing) { existing.remove(); return; }
+
+  const isAdmin = currentUser && currentUser.role === 'admin';
+  const item = (icon, label, onclick, color) => `
+    <button onclick="document.getElementById('acct-menu').remove();${onclick}"
+      style="display:flex;align-items:center;gap:12px;width:100%;padding:14px 18px;background:none;border:none;
+             border-bottom:1px solid rgba(255,255,255,.06);color:${color || 'var(--text)'};
+             font-size:15px;font-family:inherit;cursor:pointer;text-align:left">
+      <i class="fa-solid ${icon}" style="width:20px;text-align:center;font-size:14px"></i>${label}
+    </button>`;
+
+  const html = `
+    <div id="acct-menu" style="position:fixed;inset:0;z-index:500;background:rgba(0,0,0,.6);display:flex;align-items:flex-end;justify-content:center"
+         onclick="if(event.target===this)this.remove()">
+      <div style="background:var(--bg2);border-radius:20px 20px 0 0;width:100%;max-width:600px;overflow:hidden;
+                  padding-bottom:max(8px,env(safe-area-inset-bottom));animation:slideUp .2s ease">
+        <div style="padding:18px 18px 12px">
+          <div style="font-weight:700;font-size:16px">${esc(currentUser?.name || '')}</div>
+          <div style="font-size:12px;color:var(--text2);margin-top:2px">${esc(currentUser?.email || '')}</div>
+          <div style="font-size:11px;margin-top:6px;color:${isAdmin ? 'var(--accent)' : 'var(--text3)'}">
+            ● ${isAdmin ? 'ผู้ดูแลระบบ' : 'ผู้ใช้ทั่วไป'}
+          </div>
+        </div>
+        ${isAdmin ? item('fa-users', 'จัดการผู้ใช้', "switchTab('users')") : ''}
+        ${item('fa-key', 'เปลี่ยนรหัสผ่านของฉัน', 'openChangePassword()')}
+        ${item('fa-right-from-bracket', 'ออกจากระบบ', 'logout()', 'var(--red)')}
+        <button onclick="document.getElementById('acct-menu').remove()"
+          style="width:100%;padding:14px;background:none;border:none;color:var(--text2);font-size:14px;font-family:inherit;cursor:pointer">
+          ปิด
+        </button>
+      </div>
+    </div>`;
+  document.body.insertAdjacentHTML('beforeend', html);
+}
+
+/* ─── เปลี่ยนรหัสผ่านของตัวเอง ─── */
+function openChangePassword() {
+  const html = `
+    <div id="pw-modal" style="position:fixed;inset:0;z-index:500;display:flex;align-items:center;justify-content:center;padding:20px;background:rgba(0,0,0,.7)">
+      <div style="background:var(--bg2);border:1px solid var(--border);border-radius:16px;width:100%;max-width:380px;padding:22px">
+        <div style="font-weight:700;font-size:17px;margin-bottom:16px">เปลี่ยนรหัสผ่าน</div>
+        <label class="form-label">รหัสผ่านเดิม</label>
+        <input class="form-input" id="pw-old" type="password" autocomplete="current-password">
+        <label class="form-label" style="margin-top:10px">รหัสผ่านใหม่ (อย่างน้อย 8 ตัว)</label>
+        <input class="form-input" id="pw-new" type="password" autocomplete="new-password">
+        <label class="form-label" style="margin-top:10px">ยืนยันรหัสผ่านใหม่</label>
+        <input class="form-input" id="pw-new2" type="password" autocomplete="new-password">
+        <div id="pw-msg" style="color:var(--red);font-size:12px;min-height:18px;margin-top:10px"></div>
+        <div style="display:flex;gap:8px">
+          <button class="btn btn-ghost" style="flex:1" onclick="document.getElementById('pw-modal').remove()">ยกเลิก</button>
+          <button class="btn btn-primary" style="flex:1" onclick="submitChangePassword()">บันทึก</button>
+        </div>
+      </div>
+    </div>`;
+  document.body.insertAdjacentHTML('beforeend', html);
+}
+
+async function submitChangePassword() {
+  const msg = document.getElementById('pw-msg');
+  const oldP = document.getElementById('pw-old').value;
+  const newP = document.getElementById('pw-new').value;
+  const newP2 = document.getElementById('pw-new2').value;
+  msg.textContent = '';
+  if (newP !== newP2) { msg.textContent = 'รหัสผ่านใหม่ทั้งสองช่องไม่ตรงกัน'; return; }
+  if (newP.length < 8) { msg.textContent = 'รหัสผ่านใหม่ต้องยาวอย่างน้อย 8 ตัวอักษร'; return; }
+  try {
+    const r = await fetch('/api/me/password', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ currentPassword: oldP, newPassword: newP }),
+    });
+    const d = await r.json();
+    if (!r.ok) { msg.textContent = d.error || 'เปลี่ยนรหัสผ่านไม่สำเร็จ'; return; }
+    document.getElementById('pw-modal').remove();
+    toast('✓ เปลี่ยนรหัสผ่านแล้ว');
+  } catch { msg.textContent = 'เชื่อมต่อไม่ได้'; }
 }
 
 /* ─── จัดการผู้ใช้ (เฉพาะผู้ดูแลระบบ) ─── */
