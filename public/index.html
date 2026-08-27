@@ -52,6 +52,9 @@
     <button class="nav-item" onclick="switchTab('companies')" data-tab="companies">
       <i class="fa-solid fa-building"></i><span>บริษัท</span>
     </button>
+    <button class="nav-item" id="nav-users" onclick="switchTab('users')" data-tab="users" style="display:none">
+      <i class="fa-solid fa-users"></i><span>ผู้ใช้</span>
+    </button>
   </nav>
 
   <!-- CONTENT -->
@@ -93,6 +96,17 @@
         </button>
       </div>
       <div class="companies-grid" id="companies-list"></div>
+    </div>
+
+    <!-- ผู้ใช้ (เฉพาะผู้ดูแลระบบ) -->
+    <div id="tab-users" class="tab-panel">
+      <div class="section-header">
+        <div class="section-title">ผู้ใช้ในระบบ</div>
+        <button class="btn btn-primary btn-sm" onclick="openUserModal()">
+          <i class="fa-solid fa-user-plus"></i> เพิ่มผู้ใช้
+        </button>
+      </div>
+      <div id="users-list"></div>
     </div>
 
     <!-- REPORT TAB (WHT + Excel download) -->

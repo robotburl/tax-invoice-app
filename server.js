@@ -114,6 +114,28 @@ async function initDB() {
       created_at TIMESTAMPTZ DEFAULT NOW()
     );
   `);
+  // ---- ระบบผู้ใช้หลายคน (อีเมล + รหัสผ่าน, บทบาท, บันทึกผู้สแกน) ----
+  await pool.query(`
+    ALTER TABLE users ALTER COLUMN google_id DROP NOT NULL;
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS password_hash TEXT;
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS role TEXT NOT NULL DEFAULT 'user';
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT TRUE;
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS created_by INTEGER REFERENCES users(id);
+    ALTER TABLE invoices ADD COLUMN IF NOT EXISTS uploaded_by INTEGER REFERENCES users(id);
+    ALTER TABLE wht_records ADD COLUMN IF NOT EXISTS uploaded_by INTEGER REFERENCES users(id);
+  `);
+
+  // ผู้ใช้คนแรกคือผู้ดูแลระบบ และเอกสารเดิมทั้งหมดถือว่าผู้ดูแลเป็นคนสแกน
+  await pool.query(`
+    UPDATE users SET role = 'admin'
+    WHERE id = (SELECT id FROM users ORDER BY id LIMIT 1)
+      AND NOT EXISTS (SELECT 1 FROM users WHERE role = 'admin');
+  `);
+  await pool.query(`
+    UPDATE invoices SET uploaded_by = user_id WHERE uploaded_by IS NULL AND user_id IS NOT NULL;
+    UPDATE wht_records SET uploaded_by = user_id WHERE uploaded_by IS NULL AND user_id IS NOT NULL;
+  `);
+
   console.log('✅ Database tables ready');
 }
 
@@ -122,6 +144,7 @@ require('./routes/auth')(passport, pool);
 
 // Routes
 app.use('/auth', require('./routes/authRoutes')(passport, pool));
+app.use('/api', require('./routes/users')(pool));
 app.use('/api', require('./routes/api')(pool));
 
 // Serve app (protected)

@@ -1,7 +1,8 @@
 const express = require('express');
+const { verifyPassword } = require('../lib/auth-util');
 
-// จำกัดการเดา PIN ต่อ IP (อยู่หลัง Cloudflare จึงอ่าน CF-Connecting-IP)
-const loginFails = new Map();
+// จำกัดการเดารหัส: นับแยกตาม IP และอีเมลที่พยายามเข้า
+const fails = new Map();
 const MAX_FAILS = 8;
 const WINDOW_MS = 15 * 60 * 1000;
 
@@ -13,59 +14,57 @@ function clientIp(req) {
 
 setInterval(() => {
   const now = Date.now();
-  for (const [ip, rec] of loginFails) if (rec.resetAt <= now) loginFails.delete(ip);
+  for (const [k, v] of fails) if (v.resetAt <= now) fails.delete(k);
 }, 60 * 1000).unref();
+
+function blocked(key) {
+  const rec = fails.get(key);
+  if (rec && rec.count >= MAX_FAILS && rec.resetAt > Date.now()) {
+    return Math.ceil((rec.resetAt - Date.now()) / 60000);
+  }
+  return 0;
+}
+function addFail(key) {
+  const now = Date.now();
+  const rec = fails.get(key);
+  if (!rec || rec.resetAt <= now) fails.set(key, { count: 1, resetAt: now + WINDOW_MS });
+  else rec.count += 1;
+}
 
 module.exports = (passport, pool) => {
   const router = express.Router();
-  const googleEnabled = !!process.env.GOOGLE_CLIENT_ID;
 
-  // ---------- เข้าสู่ระบบด้วย PIN 4 หลัก ----------
-  router.post('/pin', async (req, res, next) => {
-    const ip = clientIp(req);
-    const rec = loginFails.get(ip);
-    if (rec && rec.count >= MAX_FAILS && rec.resetAt > Date.now()) {
-      const waitMin = Math.ceil((rec.resetAt - Date.now()) / 60000);
-      return res.status(429).json({ error: `ใส่รหัสผิดหลายครั้งเกินไป กรุณารอ ${waitMin} นาที` });
-    }
+  // ---------- เข้าสู่ระบบด้วยอีเมล + รหัสผ่าน ----------
+  router.post('/login', async (req, res, next) => {
+    const email = String((req.body && req.body.email) || '').trim().toLowerCase();
+    const password = String((req.body && req.body.password) || '');
+    const ipKey = 'ip:' + clientIp(req);
+    const emailKey = 'em:' + email;
 
-    const pin = String((req.body && req.body.pin) || '');
-    const expected = String(process.env.APP_PIN || '');
-    if (!expected) return res.status(500).json({ error: 'ยังไม่ได้ตั้งรหัส (APP_PIN)' });
+    const wait = blocked(ipKey) || blocked(emailKey);
+    if (wait) return res.status(429).json({ error: `พยายามเข้าระบบผิดหลายครั้ง กรุณารอ ${wait} นาที` });
 
-    if (pin && pin === expected) {
-      try {
-        const r = await pool.query('SELECT * FROM users ORDER BY id LIMIT 1');
-        const user = r.rows[0];
-        if (!user) return res.status(500).json({ error: 'ไม่พบบัญชีผู้ใช้ในระบบ' });
-        req.login(user, err => {
-          if (err) return next(err);
-          loginFails.delete(ip);
-          res.json({ ok: true });
-        });
-      } catch (e) { next(e); }
-      return;
-    }
+    if (!email || !password) return res.status(400).json({ error: 'กรุณากรอกอีเมลและรหัสผ่าน' });
 
-    const now = Date.now();
-    if (!rec || rec.resetAt <= now) loginFails.set(ip, { count: 1, resetAt: now + WINDOW_MS });
-    else rec.count += 1;
-    return res.status(401).json({ error: 'รหัสไม่ถูกต้อง' });
+    try {
+      const r = await pool.query('SELECT * FROM users WHERE LOWER(email) = $1', [email]);
+      const user = r.rows[0];
+
+      if (!user || !verifyPassword(password, user.password_hash)) {
+        addFail(ipKey); addFail(emailKey);
+        return res.status(401).json({ error: 'อีเมลหรือรหัสผ่านไม่ถูกต้อง' });
+      }
+      if (user.is_active === false) {
+        return res.status(403).json({ error: 'บัญชีนี้ถูกระงับการใช้งาน' });
+      }
+
+      req.login(user, err => {
+        if (err) return next(err);
+        fails.delete(ipKey); fails.delete(emailKey);
+        res.json({ ok: true, user: { id: user.id, email: user.email, name: user.name, role: user.role } });
+      });
+    } catch (e) { next(e); }
   });
-
-  // ---------- Google OAuth (ปิดอยู่ เปิดคืนได้ด้วยการใส่ GOOGLE_CLIENT_ID) ----------
-  if (googleEnabled) {
-    router.get('/google', passport.authenticate('google', {
-      scope: ['profile', 'email'],
-      prompt: 'select_account',
-    }));
-    router.get('/google/callback',
-      passport.authenticate('google', { failureRedirect: '/login.html?error=unauthorized' }),
-      (req, res) => res.redirect('/')
-    );
-  } else {
-    router.get('/google', (req, res) => res.redirect('/login.html'));
-  }
 
   router.post('/logout', (req, res) => {
     req.logout(() => {
@@ -78,8 +77,8 @@ module.exports = (passport, pool) => {
 
   router.get('/me', (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).json({ error: 'Not authenticated' });
-    const { id, email, name, picture } = req.user;
-    res.json({ id, email, name, picture });
+    const { id, email, name, picture, role } = req.user;
+    res.json({ id, email, name, picture, role });
   });
 
   return router;

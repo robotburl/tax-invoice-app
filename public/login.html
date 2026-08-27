@@ -2,7 +2,7 @@
 <html lang="th">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="theme-color" content="#0f1117">
 <link rel="manifest" href="/manifest.json">
 <link rel="apple-touch-icon" sizes="180x180" href="/icons/icon-180.png">
@@ -10,107 +10,74 @@
 <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png">
 <meta name="apple-mobile-web-app-title" content="อีสานพัฒนา">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<title>Tax Manager — เข้าสู่ระบบ</title>
+<title>เข้าสู่ระบบ — Tax Invoice Manager</title>
 <style>
   *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
   body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:#0f1117;color:#e8eaf6;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px}
-  .card{background:#181c27;border:1px solid #3a4060;border-radius:16px;padding:32px 24px;width:100%;max-width:340px;text-align:center}
-  .logo{width:64px;height:64px;background:#5b8dee;border-radius:16px;display:flex;align-items:center;justify-content:center;font-size:32px;margin:0 auto 18px}
-  h1{font-size:19px;font-weight:700;margin-bottom:4px}
-  .sub{font-size:13px;color:#9fa8c4;margin-bottom:24px}
-  .dots{display:flex;gap:14px;justify-content:center;margin-bottom:8px;height:18px}
-  .dot{width:14px;height:14px;border-radius:50%;border:2px solid #4a5480;transition:all .15s}
-  .dot.on{background:#5b8dee;border-color:#5b8dee;transform:scale(1.1)}
-  .msg{font-size:13px;min-height:20px;margin-bottom:16px;color:#ff6b6b}
-  .pad{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
-  .key{background:#222736;border:1px solid #3a4060;border-radius:12px;color:#e8eaf6;font-size:24px;font-weight:600;padding:16px 0;cursor:pointer;user-select:none;transition:background .1s}
-  .key:active{background:#2e3548}
-  .key.blank{background:none;border:none;cursor:default}
-  .key.fn{font-size:15px;color:#9fa8c4}
+  .card{background:#181c27;border:1px solid #3a4060;border-radius:18px;padding:32px 26px;width:100%;max-width:360px}
+  .logo{width:76px;height:76px;border-radius:18px;margin:0 auto 16px;display:block;object-fit:cover}
+  h1{font-size:19px;font-weight:700;text-align:center;margin-bottom:4px}
+  .sub{font-size:13px;color:#9fa8c4;text-align:center;margin-bottom:24px}
+  label{display:block;font-size:12px;color:#9fa8c4;margin:0 0 6px 2px}
+  input{width:100%;padding:13px 14px;background:#222736;border:1px solid #3a4060;border-radius:10px;color:#e8eaf6;font-size:15px;margin-bottom:14px}
+  input:focus{outline:none;border-color:#5b8dee}
+  button{width:100%;padding:14px;background:#5b8dee;border:none;border-radius:10px;color:#fff;font-size:15px;font-weight:600;cursor:pointer}
+  button:disabled{opacity:.6;cursor:default}
+  .msg{font-size:13px;color:#ff6b6b;min-height:20px;margin-bottom:10px;text-align:center}
+  .note{font-size:11px;color:#6b75a0;text-align:center;margin-top:18px;line-height:1.6}
   body.shake .card{animation:sh .4s}
-  @keyframes sh{0%,100%{transform:translateX(0)}25%{transform:translateX(-9px)}75%{transform:translateX(9px)}}
+  @keyframes sh{0%,100%{transform:translateX(0)}25%{transform:translateX(-8px)}75%{transform:translateX(8px)}}
 </style>
 </head>
 <body>
 <div class="card">
-  <div class="logo">📄</div>
-  <h1>Tax Invoice Manager</h1>
-  <div class="sub">ใส่รหัส 4 หลักเพื่อเข้าสู่ระบบ</div>
-  <div class="dots" id="dots">
-    <div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div>
-  </div>
-  <div class="msg" id="msg"></div>
-  <div class="pad" id="pad">
-    <button class="key" data-k="1">1</button>
-    <button class="key" data-k="2">2</button>
-    <button class="key" data-k="3">3</button>
-    <button class="key" data-k="4">4</button>
-    <button class="key" data-k="5">5</button>
-    <button class="key" data-k="6">6</button>
-    <button class="key" data-k="7">7</button>
-    <button class="key" data-k="8">8</button>
-    <button class="key" data-k="9">9</button>
-    <button class="key blank"></button>
-    <button class="key" data-k="0">0</button>
-    <button class="key fn" data-k="del">ลบ</button>
-  </div>
+  <img src="/icons/icon-192.png" alt="" class="logo">
+  <h1>Tax / WHT Manager</h1>
+  <div class="sub">บริษัท อีสาน พัฒนา จำกัด</div>
+
+  <form id="f" autocomplete="on">
+    <label for="email">อีเมล</label>
+    <input type="email" id="email" name="email" autocomplete="username" inputmode="email" required placeholder="name@company.com">
+
+    <label for="password">รหัสผ่าน</label>
+    <input type="password" id="password" name="password" autocomplete="current-password" required placeholder="••••••••">
+
+    <div class="msg" id="msg"></div>
+    <button type="submit" id="btn">เข้าสู่ระบบ</button>
+  </form>
+
+  <div class="note">หากลืมรหัสผ่าน กรุณาติดต่อผู้ดูแลระบบ<br>เพื่อตั้งรหัสผ่านใหม่ให้</div>
 </div>
+
 <script>
-(function () {
-  var pin = '', busy = false;
-  var dots = document.querySelectorAll('#dots .dot');
-  var msg = document.getElementById('msg');
+const f = document.getElementById('f');
+const msg = document.getElementById('msg');
+const btn = document.getElementById('btn');
 
-  function render() {
-    dots.forEach(function (d, i) { d.classList.toggle('on', i < pin.length); });
-  }
-
-  function fail(text) {
-    msg.textContent = text;
-    document.body.classList.add('shake');
-    setTimeout(function () { document.body.classList.remove('shake'); }, 400);
-    pin = ''; render();
-  }
-
-  function submit() {
-    if (busy) return;
-    busy = true;
-    msg.textContent = '';
-    fetch('/auth/pin', {
+f.addEventListener('submit', async e => {
+  e.preventDefault();
+  btn.disabled = true; msg.textContent = '';
+  try {
+    const r = await fetch('/auth/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ pin: pin }),
-      credentials: 'same-origin'
-    }).then(function (r) {
-      return r.json().then(function (d) { return { ok: r.ok, d: d }; });
-    }).then(function (res) {
-      busy = false;
-      if (res.ok) { location.href = '/'; return; }
-      fail(res.d.error || 'รหัสไม่ถูกต้อง');
-    }).catch(function () {
-      busy = false;
-      fail('เชื่อมต่อไม่ได้ ลองใหม่');
+      credentials: 'same-origin',
+      body: JSON.stringify({
+        email: document.getElementById('email').value.trim(),
+        password: document.getElementById('password').value,
+      }),
     });
+    const d = await r.json();
+    if (r.ok) { location.href = '/'; return; }
+    msg.textContent = d.error || 'เข้าสู่ระบบไม่สำเร็จ';
+    document.body.classList.add('shake');
+    setTimeout(() => document.body.classList.remove('shake'), 400);
+    document.getElementById('password').value = '';
+  } catch {
+    msg.textContent = 'เชื่อมต่อเซิร์ฟเวอร์ไม่ได้';
   }
-
-  function press(k) {
-    if (busy) return;
-    if (k === 'del') { pin = pin.slice(0, -1); render(); return; }
-    if (pin.length >= 4) return;
-    pin += k; render();
-    if (pin.length === 4) setTimeout(submit, 120);
-  }
-
-  document.getElementById('pad').addEventListener('click', function (e) {
-    var btn = e.target.closest('[data-k]');
-    if (btn) press(btn.dataset.k);
-  });
-
-  window.addEventListener('keydown', function (e) {
-    if (e.key >= '0' && e.key <= '9') press(e.key);
-    else if (e.key === 'Backspace') press('del');
-  });
-})();
+  btn.disabled = false;
+});
 </script>
 </body>
 </html>

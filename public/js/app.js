@@ -27,6 +27,9 @@ async function fetchUser() {
     const r = await fetch('/auth/me');
     if (!r.ok) { location.href = '/login.html'; return; }
     currentUser = await r.json();
+    // แท็บจัดการผู้ใช้เปิดให้เฉพาะผู้ดูแลระบบ
+    const navUsers = document.getElementById('nav-users');
+    if (navUsers) navUsers.style.display = currentUser.role === 'admin' ? '' : 'none';
     const ui = document.getElementById('user-info');
     ui.innerHTML = currentUser.picture
       ? `<img src="${currentUser.picture}" class="user-avatar" referrerpolicy="no-referrer"><span class="user-name">${esc(currentUser.name)}</span>`
@@ -65,6 +68,7 @@ function switchTab(tab) {
   if (tab === 'records') { activeDocFilter='all'; renderRecords(); }
   if (tab === 'companies') renderCompanies();
   if (tab === 'report') { renderReport(); renderImageDownloadList(); }
+  if (tab === 'users') renderUsers();
   document.querySelector('.content').scrollTop = 0;
 }
 
@@ -249,6 +253,7 @@ function renderWhtCard(w) {
         <div class="invoice-total" style="color:var(--accent)">${fmt(w.wht_amount)} ฿</div>
         <div class="invoice-date">${w.wht_date||d.toLocaleDateString('th-TH')}</div>
       </div>
+      ${uploaderLine(w)}
     </div>
   </div>`;
 }
@@ -274,6 +279,7 @@ function renderInvoiceCard(inv) {
         <div style="font-size:11px;color:var(--text3)">รวมสุทธิ<br><span style="font-family:'IBM Plex Mono',monospace;font-size:14px;color:var(--green);font-weight:700">${fmt(inv.total)}</span></div>
         <div style="margin-left:auto;font-size:11px;color:var(--text3);text-align:right">${inv.invoice_date || d.toLocaleDateString('th-TH')}</div>
       </div>
+      ${uploaderLine(inv)}
     </div>
   </div>`;
 }
@@ -1434,4 +1440,161 @@ async function runBackfill() {
     btn.disabled = false;
     btn.innerHTML = '<i class="fa-solid fa-wand-magic-sparkles"></i> AI วิเคราะห์ประเภทต้นทุนรายการเก่า';
   }
+}
+
+
+/* แสดงว่าใครเป็นคนสแกนเอกสารนี้ */
+function uploaderLine(rec) {
+  const who = rec.uploaded_by_name || rec.uploaded_by_email;
+  if (!who) return '';
+  const isMe = currentUser && rec.uploaded_by === currentUser.id;
+  return `<div style="font-size:10px;color:var(--text3);margin-top:5px">
+    <i class="fa-solid fa-user" style="font-size:9px"></i> สแกนโดย ${esc(who)}${isMe ? ' (คุณ)' : ''}
+  </div>`;
+}
+
+/* ─── จัดการผู้ใช้ (เฉพาะผู้ดูแลระบบ) ─── */
+let usersCache = [];
+
+async function renderUsers() {
+  const box = document.getElementById('users-list');
+  if (!box) return;
+  box.innerHTML = '<div style="color:var(--text2);font-size:13px;padding:12px">กำลังโหลด…</div>';
+  try {
+    const r = await fetch('/api/users');
+    if (!r.ok) {
+      const d = await r.json().catch(() => ({}));
+      box.innerHTML = `<div style="color:var(--red);font-size:13px;padding:12px">${esc(d.error || 'โหลดรายชื่อไม่สำเร็จ')}</div>`;
+      return;
+    }
+    usersCache = await r.json();
+  } catch {
+    box.innerHTML = '<div style="color:var(--red);font-size:13px;padding:12px">เชื่อมต่อไม่ได้</div>';
+    return;
+  }
+
+  box.innerHTML = usersCache.map(u => {
+    const isMe = currentUser && u.id === currentUser.id;
+    const roleLabel = u.role === 'admin' ? 'ผู้ดูแลระบบ' : 'ผู้ใช้ทั่วไป';
+    const roleColor = u.role === 'admin' ? 'var(--accent)' : 'var(--text2)';
+    const scans = Number(u.invoice_count || 0) + Number(u.wht_count || 0);
+    return `
+    <div class="card" style="padding:14px 16px;margin-bottom:10px;${u.is_active ? '' : 'opacity:.55'}">
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+        <div style="flex:1;min-width:180px">
+          <div style="font-weight:600;font-size:15px">
+            ${esc(u.name)}${isMe ? ' <span style="font-size:11px;color:var(--text3)">(คุณ)</span>' : ''}
+          </div>
+          <div style="font-size:12px;color:var(--text2);margin-top:2px">${esc(u.email)}</div>
+          <div style="font-size:11px;margin-top:5px">
+            <span style="color:${roleColor}">● ${roleLabel}</span>
+            <span style="color:var(--text3)"> · สแกนแล้ว ${scans} รายการ</span>
+            ${u.is_active ? '' : '<span style="color:var(--amber)"> · ถูกระงับ</span>'}
+          </div>
+        </div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
+          <button class="btn btn-ghost btn-sm" onclick="resetUserPassword(${u.id})">
+            <i class="fa-solid fa-key"></i> รหัสผ่าน
+          </button>
+          ${isMe ? '' : `
+            <button class="btn btn-ghost btn-sm" onclick="toggleUserRole(${u.id})">
+              <i class="fa-solid fa-user-shield"></i> ${u.role === 'admin' ? 'ลดเป็นผู้ใช้' : 'ตั้งเป็นแอดมิน'}
+            </button>
+            <button class="btn btn-ghost btn-sm" onclick="toggleUserActive(${u.id})">
+              <i class="fa-solid fa-${u.is_active ? 'ban' : 'circle-check'}"></i> ${u.is_active ? 'ระงับ' : 'เปิดใช้'}
+            </button>`}
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function openUserModal() {
+  const html = `
+    <div id="user-modal" style="position:fixed;inset:0;z-index:400;display:flex;align-items:center;justify-content:center;padding:20px;background:rgba(0,0,0,.7)">
+      <div style="background:var(--bg2);border:1px solid var(--border);border-radius:16px;width:100%;max-width:400px;padding:22px">
+        <div style="font-weight:700;font-size:17px;margin-bottom:16px">เพิ่มผู้ใช้ใหม่</div>
+        <label class="form-label">ชื่อ-นามสกุล</label>
+        <input class="form-input" id="nu-name" placeholder="เช่น สมชาย ใจดี">
+        <label class="form-label" style="margin-top:10px">อีเมล</label>
+        <input class="form-input" id="nu-email" type="email" inputmode="email" placeholder="name@company.com">
+        <label class="form-label" style="margin-top:10px">รหัสผ่านเริ่มต้น (อย่างน้อย 8 ตัว)</label>
+        <input class="form-input" id="nu-pass" type="text" placeholder="ตั้งรหัสให้ผู้ใช้">
+        <label class="form-label" style="margin-top:10px">สิทธิ์</label>
+        <select class="form-input" id="nu-role">
+          <option value="user">ผู้ใช้ทั่วไป — สแกน ดูเอกสาร ดาวน์โหลดได้</option>
+          <option value="admin">ผู้ดูแลระบบ — จัดการผู้ใช้และบริษัทได้ด้วย</option>
+        </select>
+        <div id="nu-msg" style="color:var(--red);font-size:12px;min-height:18px;margin-top:10px"></div>
+        <div style="display:flex;gap:8px;margin-top:6px">
+          <button class="btn btn-ghost" style="flex:1" onclick="document.getElementById('user-modal').remove()">ยกเลิก</button>
+          <button class="btn btn-primary" style="flex:1" onclick="createUser()">เพิ่มผู้ใช้</button>
+        </div>
+      </div>
+    </div>`;
+  document.body.insertAdjacentHTML('beforeend', html);
+}
+
+async function createUser() {
+  const msg = document.getElementById('nu-msg');
+  msg.textContent = '';
+  const body = {
+    name: v('nu-name'),
+    email: v('nu-email'),
+    password: document.getElementById('nu-pass').value,
+    role: v('nu-role') || 'user',
+  };
+  try {
+    const r = await fetch('/api/users', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const d = await r.json();
+    if (!r.ok) { msg.textContent = d.error || 'เพิ่มผู้ใช้ไม่สำเร็จ'; return; }
+    document.getElementById('user-modal').remove();
+    toast('✓ เพิ่มผู้ใช้แล้ว — แจ้งรหัสผ่านให้เจ้าตัวเปลี่ยนเองภายหลัง');
+    renderUsers();
+  } catch { msg.textContent = 'เชื่อมต่อไม่ได้'; }
+}
+
+async function toggleUserRole(id) {
+  const u = usersCache.find(x => x.id === id); if (!u) return;
+  const next = u.role === 'admin' ? 'user' : 'admin';
+  if (!confirm(`เปลี่ยนสิทธิ์ของ ${u.name} เป็น "${next === 'admin' ? 'ผู้ดูแลระบบ' : 'ผู้ใช้ทั่วไป'}" ?`)) return;
+  await patchUser(id, { role: next });
+}
+
+async function toggleUserActive(id) {
+  const u = usersCache.find(x => x.id === id); if (!u) return;
+  const next = !u.is_active;
+  if (!confirm(next ? `เปิดใช้งานบัญชี ${u.name} ?` : `ระงับบัญชี ${u.name} ? (เข้าระบบไม่ได้ แต่ข้อมูลที่สแกนไว้ยังอยู่)`)) return;
+  await patchUser(id, { is_active: next });
+}
+
+async function patchUser(id, body) {
+  try {
+    const r = await fetch(`/api/users/${id}`, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const d = await r.json();
+    if (!r.ok) { toast(d.error || 'แก้ไขไม่สำเร็จ', true); return; }
+    toast('✓ บันทึกแล้ว');
+    renderUsers();
+  } catch { toast('เชื่อมต่อไม่ได้', true); }
+}
+
+async function resetUserPassword(id) {
+  const u = usersCache.find(x => x.id === id); if (!u) return;
+  const pass = prompt(`ตั้งรหัสผ่านใหม่ให้ ${u.name}\n(อย่างน้อย 8 ตัวอักษร)`);
+  if (!pass) return;
+  try {
+    const r = await fetch(`/api/users/${id}/password`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password: pass }),
+    });
+    const d = await r.json();
+    if (!r.ok) { toast(d.error || 'ตั้งรหัสไม่สำเร็จ', true); return; }
+    toast('✓ ตั้งรหัสผ่านใหม่แล้ว');
+  } catch { toast('เชื่อมต่อไม่ได้', true); }
 }

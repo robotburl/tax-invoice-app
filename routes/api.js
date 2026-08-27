@@ -6,6 +6,8 @@ function requireAuth(req, res, next) {
   res.status(401).json({ error: 'Not authenticated' });
 }
 
+const { orgOwnerId, requireAdmin } = require('../lib/auth-util');
+
 module.exports = (pool) => {
   const router = express.Router();
   router.use(requireAuth);
@@ -15,9 +17,10 @@ module.exports = (pool) => {
   // GET all companies for user
   router.get('/companies', async (req, res) => {
     try {
+    const OWNER_ID = await orgOwnerId(pool);
       const result = await pool.query(
         'SELECT * FROM companies WHERE user_id = $1 ORDER BY created_at ASC',
-        [req.user.id]
+        [OWNER_ID]
       );
       res.json(result.rows);
     } catch (err) {
@@ -28,6 +31,7 @@ module.exports = (pool) => {
   // POST create company
   router.post('/companies', async (req, res) => {
     try {
+    const OWNER_ID = await orgOwnerId(pool);
       const { name, tax_id, address, branch } = req.body;
       if (!name || !tax_id || !address) {
         return res.status(400).json({ error: 'กรุณากรอกข้อมูลให้ครบ' });
@@ -35,14 +39,14 @@ module.exports = (pool) => {
       // Max 3 companies per user
       const count = await pool.query(
         'SELECT COUNT(*) FROM companies WHERE user_id = $1',
-        [req.user.id]
+        [OWNER_ID]
       );
       if (parseInt(count.rows[0].count) >= 3) {
         return res.status(400).json({ error: 'สามารถเพิ่มได้สูงสุด 3 บริษัท' });
       }
       const result = await pool.query(
         'INSERT INTO companies (user_id, name, tax_id, address, branch) VALUES ($1,$2,$3,$4,$5) RETURNING *',
-        [req.user.id, name, tax_id, address, branch || null]
+        [OWNER_ID, name, tax_id, address, branch || null]
       );
       res.json(result.rows[0]);
     } catch (err) {
@@ -51,21 +55,11 @@ module.exports = (pool) => {
   });
 
   // DELETE company
-  router.delete('/companies/:id', async (req, res) => {
-    return res.status(403).json({
+  // ระบบล็อกการลบไว้ — เอกสารทางบัญชีต้องเก็บรักษา (ลบได้จากหลังบ้านเท่านั้น)
+  router.delete('/companies/:id', (req, res) => {
+    res.status(403).json({
       error: 'ระบบล็อกการลบไว้ — เอกสารทางบัญชีต้องเก็บรักษาไว้ หากจำเป็นต้องลบจริงให้ทำจากหลังบ้าน',
     });
-
-    /* eslint-disable no-unreachable */
-    try {
-      await pool.query(
-        'DELETE FROM companies WHERE id = $1 AND user_id = $2',
-        [req.params.id, req.user.id]
-      );
-      res.json({ ok: true });
-    } catch (err) {
-      res.status(500).json({ error: err.message });
-    }
   });
 
   /* ─── INVOICES ─── */
@@ -73,13 +67,16 @@ module.exports = (pool) => {
   // GET invoices - optional ?month=YYYY-MM&company_id=X
   router.get('/invoices', async (req, res) => {
     try {
+    const OWNER_ID = await orgOwnerId(pool);
       let query = `
-        SELECT i.*, c.name as company_name
+        SELECT i.*, c.name as company_name,
+               u.name AS uploaded_by_name, u.email AS uploaded_by_email
         FROM invoices i
         LEFT JOIN companies c ON c.id = i.company_id
+        LEFT JOIN users u ON u.id = i.uploaded_by
         WHERE i.user_id = $1
       `;
-      const params = [req.user.id];
+      const params = [OWNER_ID];
 
       if (req.query.company_id) {
         params.push(req.query.company_id);
@@ -88,6 +85,10 @@ module.exports = (pool) => {
       if (req.query.month) {
         params.push(req.query.month + '-01');
         query += ` AND DATE_TRUNC('month', i.capture_date) = DATE_TRUNC('month', $${params.length}::date)`;
+      }
+      if (req.query.uploaded_by) {
+        params.push(parseInt(req.query.uploaded_by, 10));
+        query += ` AND i.uploaded_by = $${params.length}`;
       }
       query += ' ORDER BY i.capture_date DESC';
 
@@ -101,6 +102,7 @@ module.exports = (pool) => {
   // GET monthly summary
   router.get('/invoices/summary', async (req, res) => {
     try {
+    const OWNER_ID = await orgOwnerId(pool);
       const result = await pool.query(`
         SELECT
           TO_CHAR(DATE_TRUNC('month', capture_date), 'YYYY-MM') as month,
@@ -113,7 +115,7 @@ module.exports = (pool) => {
         WHERE user_id = $1
         GROUP BY DATE_TRUNC('month', capture_date), company_id
         ORDER BY DATE_TRUNC('month', capture_date) DESC
-      `, [req.user.id]);
+      `, [OWNER_ID]);
       res.json(result.rows);
     } catch (err) {
       res.status(500).json({ error: err.message });
@@ -123,6 +125,7 @@ module.exports = (pool) => {
   // POST create invoice
   router.post('/invoices', async (req, res) => {
     try {
+    const OWNER_ID = await orgOwnerId(pool);
       const {
         company_id, seller_name, seller_tax,
         buyer_name, buyer_tax, buyer_address, buyer_branch,
@@ -143,7 +146,7 @@ module.exports = (pool) => {
       if (company_id) {
         const co = await pool.query(
           'SELECT id FROM companies WHERE id = $1 AND user_id = $2',
-          [company_id, req.user.id]
+          [company_id, OWNER_ID]
         );
         if (co.rows.length === 0) {
           return res.status(403).json({ error: 'บริษัทไม่ถูกต้อง' });
@@ -159,7 +162,7 @@ module.exports = (pool) => {
             AND invoice_date = $3
             AND total::numeric = $4::numeric
           LIMIT 1
-        `, [req.user.id, seller_tax, invoice_date, total]);
+        `, [OWNER_ID, seller_tax, invoice_date, total]);
         if (dup.rows.length > 0) {
           const dupDate = new Date(dup.rows[0].capture_date).toLocaleDateString('th-TH', {
             year: 'numeric', month: 'long', day: 'numeric'
@@ -177,14 +180,15 @@ module.exports = (pool) => {
           user_id, company_id, seller_name, seller_tax,
           buyer_name, buyer_tax, buyer_address, buyer_branch,
           items, price, vat, total, invoice_date,
-          image_data, address_mismatch, cost_type, notes
-        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)
+          image_data, address_mismatch, cost_type, notes, uploaded_by
+        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)
         RETURNING *
       `, [
-        req.user.id, company_id || null, seller_name, seller_tax,
+        OWNER_ID, company_id || null, seller_name, seller_tax,
         buyer_name, buyer_tax, buyer_address, buyer_branch,
         items, price || 0, vat || 0, total || 0, invoice_date,
         image_data || null, address_mismatch || false, cost_type || null, notes || null,
+        req.user.id,
       ]);
       res.json(result.rows[0]);
     } catch (err) {
@@ -193,34 +197,25 @@ module.exports = (pool) => {
   });
 
   // DELETE invoice
-  router.delete('/invoices/:id', async (req, res) => {
-    return res.status(403).json({
+  // ระบบล็อกการลบไว้ — เอกสารทางบัญชีต้องเก็บรักษา (ลบได้จากหลังบ้านเท่านั้น)
+  router.delete('/invoices/:id', (req, res) => {
+    res.status(403).json({
       error: 'ระบบล็อกการลบไว้ — เอกสารทางบัญชีต้องเก็บรักษาไว้ หากจำเป็นต้องลบจริงให้ทำจากหลังบ้าน',
     });
-
-    /* eslint-disable no-unreachable */
-    try {
-      await pool.query(
-        'DELETE FROM invoices WHERE id = $1 AND user_id = $2',
-        [req.params.id, req.user.id]
-      );
-      res.json({ ok: true });
-    } catch (err) {
-      res.status(500).json({ error: err.message });
-    }
   });
 
 
   /* ─── ANALYZE INVOICE WITH AI (auto-match company) ─── */
   router.post('/analyze', async (req, res) => {
     try {
+    const OWNER_ID = await orgOwnerId(pool);
       const { imageBase64 } = req.body;
       if (!imageBase64) return res.status(400).json({ error: 'Missing imageBase64' });
 
       // Load all user's companies for auto-matching
       const coResult = await pool.query(
         'SELECT * FROM companies WHERE user_id = $1 ORDER BY created_at ASC',
-        [req.user.id]
+        [OWNER_ID]
       );
       const userCompanies = coResult.rows;
       if (userCompanies.length === 0) {
@@ -350,10 +345,14 @@ ${coList}` },
 
   router.get('/wht', async (req, res) => {
     try {
-      let query = `SELECT w.*, c.name as company_name FROM wht_records w
+    const OWNER_ID = await orgOwnerId(pool);
+      let query = `SELECT w.*, c.name as company_name,
+               u.name AS uploaded_by_name, u.email AS uploaded_by_email
+        FROM wht_records w
         LEFT JOIN companies c ON c.id = w.company_id
+        LEFT JOIN users u ON u.id = w.uploaded_by
         WHERE w.user_id = $1`;
-      const params = [req.user.id];
+      const params = [OWNER_ID];
       if (req.query.company_id) { params.push(req.query.company_id); query += ` AND w.company_id = $${params.length}`; }
       if (req.query.month) { params.push(req.query.month + '-01'); query += ` AND DATE_TRUNC('month', w.capture_date) = DATE_TRUNC('month', $${params.length}::date)`; }
       query += ' ORDER BY w.capture_date DESC';
@@ -364,11 +363,12 @@ ${coList}` },
 
   router.post('/wht', async (req, res) => {
     try {
+    const OWNER_ID = await orgOwnerId(pool);
       const { company_id, payer_name, payer_tax, payee_name, payee_tax,
               wht_type, income_type, income_amount, wht_rate, wht_amount,
               wht_date, image_data, notes } = req.body;
       if (company_id) {
-        const co = await pool.query('SELECT id FROM companies WHERE id = $1 AND user_id = $2', [company_id, req.user.id]);
+        const co = await pool.query('SELECT id FROM companies WHERE id = $1 AND user_id = $2', [company_id, OWNER_ID]);
         if (!co.rows.length) return res.status(403).json({ error: 'บริษัทไม่ถูกต้อง' });
       }
       // Duplicate check: same payer_tax + wht_date + wht_amount
@@ -380,7 +380,7 @@ ${coList}` },
             AND wht_date = $3
             AND wht_amount::numeric = $4::numeric
           LIMIT 1
-        `, [req.user.id, payer_tax, wht_date, wht_amount]);
+        `, [OWNER_ID, payer_tax, wht_date, wht_amount]);
         if (dup.rows.length > 0) {
           const dupDate = new Date(dup.rows[0].capture_date).toLocaleDateString('th-TH', {
             year: 'numeric', month: 'long', day: 'numeric'
@@ -395,34 +395,30 @@ ${coList}` },
 
       const result = await pool.query(`
         INSERT INTO wht_records (user_id,company_id,payer_name,payer_tax,payee_name,payee_tax,
-          wht_type,income_type,income_amount,wht_rate,wht_amount,wht_date,image_data,notes)
-        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) RETURNING *`,
-        [req.user.id, company_id||null, payer_name, payer_tax, payee_name, payee_tax,
+          wht_type,income_type,income_amount,wht_rate,wht_amount,wht_date,image_data,notes,uploaded_by)
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15) RETURNING *`,
+        [OWNER_ID, company_id||null, payer_name, payer_tax, payee_name, payee_tax,
          wht_type, income_type, income_amount||0, wht_rate||0, wht_amount||0,
-         wht_date, image_data||null, notes||null]);
+         wht_date, image_data||null, notes||null, req.user.id]);
       res.json(result.rows[0]);
     } catch (err) { res.status(500).json({ error: err.message }); }
   });
 
-  router.delete('/wht/:id', async (req, res) => {
-    return res.status(403).json({
+  // ระบบล็อกการลบไว้ — เอกสารทางบัญชีต้องเก็บรักษา (ลบได้จากหลังบ้านเท่านั้น)
+  router.delete('/wht/:id', (req, res) => {
+    res.status(403).json({
       error: 'ระบบล็อกการลบไว้ — เอกสารทางบัญชีต้องเก็บรักษาไว้ หากจำเป็นต้องลบจริงให้ทำจากหลังบ้าน',
     });
-
-    /* eslint-disable no-unreachable */
-    try {
-      await pool.query('DELETE FROM wht_records WHERE id = $1 AND user_id = $2', [req.params.id, req.user.id]);
-      res.json({ ok: true });
-    } catch (err) { res.status(500).json({ error: err.message }); }
   });
 
   /* ─── ANALYZE WHT ─── */
   router.post('/analyze-wht', async (req, res) => {
     try {
+    const OWNER_ID = await orgOwnerId(pool);
       const { imageBase64 } = req.body;
       if (!imageBase64) return res.status(400).json({ error: 'Missing imageBase64' });
 
-      const coResult = await pool.query('SELECT * FROM companies WHERE user_id = $1 ORDER BY created_at ASC', [req.user.id]);
+      const coResult = await pool.query('SELECT * FROM companies WHERE user_id = $1 ORDER BY created_at ASC', [OWNER_ID]);
       const userCompanies = coResult.rows;
       const coList = userCompanies.map((c,i) => `[${i}] name="${c.name}" tax="${c.tax_id}"`).join('\n');
 
@@ -459,8 +455,9 @@ matchedCompanyIndex=index บริษัทผู้รับเงิน(payee
   /* ─── EXCEL EXPORT ─── */
   router.get('/export/excel', async (req, res) => {
     try {
+    const OWNER_ID = await orgOwnerId(pool);
       const { month, company_id, type } = req.query; // type = 'invoice'|'wht'|'all'
-      const params = [req.user.id];
+      const params = [OWNER_ID];
       let monthFilter = '';
       if (month) { params.push(month + '-01'); monthFilter = ` AND DATE_TRUNC('month', capture_date) = DATE_TRUNC('month', $${params.length}::date)`; }
       let coFilter = '';
@@ -473,7 +470,7 @@ matchedCompanyIndex=index บริษัทผู้รับเงิน(payee
       let whtRows = [];
       if (!type || type === 'wht' || type === 'all') {
         let whtQuery = `SELECT * FROM wht_records WHERE user_id = $1`;
-        const whtParams = [req.user.id];
+        const whtParams = [OWNER_ID];
         if (month) {
           whtParams.push(month + '-01');
           whtQuery += ` AND (
@@ -528,13 +525,14 @@ matchedCompanyIndex=index บริษัทผู้รับเงิน(payee
   /* ─── BACKFILL cost_type for existing invoices ─── */
   router.post('/invoices/backfill-cost-type', async (req, res) => {
     try {
+    const OWNER_ID = await orgOwnerId(pool);
       // Get all invoices without cost_type
       const result = await pool.query(
         `SELECT id, seller_name, seller_tax, items, image_data
          FROM invoices
          WHERE user_id = $1 AND (cost_type IS NULL OR cost_type = '')
          ORDER BY created_at ASC`,
-        [req.user.id]
+        [OWNER_ID]
       );
 
       const rows = result.rows;
@@ -607,7 +605,7 @@ matchedCompanyIndex=index บริษัทผู้รับเงิน(payee
 
           await pool.query(
             'UPDATE invoices SET cost_type = $1 WHERE id = $2 AND user_id = $3',
-            [costType, row.id, req.user.id]
+            [costType, row.id, OWNER_ID]
           );
           updated++;
 

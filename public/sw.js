@@ -1,4 +1,4 @@
-const CACHE = 'tax-invoice-nas-2026-08-27b';
+const CACHE = 'tax-invoice-nas-2026-08-28a';
 const STATIC = ['/login.html', '/manifest.json', '/css/app.css', '/js/app.js',
   '/icons/icon-180.png', '/icons/icon-192.png', '/icons/icon-512.png'];
 
