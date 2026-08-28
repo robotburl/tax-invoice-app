@@ -11,6 +11,8 @@
   --topbar-h:52px;
   --safe-top:env(safe-area-inset-top,0px);
   --safe-bottom:env(safe-area-inset-bottom,0px);
+  /* เผื่อแถบ home indicator แค่ครึ่งเดียว ให้เมนูล่างชิดขอบมากขึ้นแต่ยังกดได้ */
+  --nav-safe:calc(env(safe-area-inset-bottom,0px) * .5);
 }
 
 html,body{height:100%;background:var(--bg);font-family:'IBM Plex Sans Thai',sans-serif;color:var(--text);font-size:14px;line-height:1.6;overflow:hidden}
@@ -34,7 +36,7 @@ html,body{height:100%;background:var(--bg);font-family:'IBM Plex Sans Thai',sans
 /* CONTENT */
 .content{
   flex:1;overflow-y:auto;overflow-x:hidden;
-  padding:16px 16px calc(var(--nav-h) + env(safe-area-inset-bottom, 0px) + 16px);
+  padding:16px 16px calc(var(--nav-h) + var(--nav-safe) + 16px);
   -webkit-overflow-scrolling:touch;
 }
 
@@ -43,8 +45,8 @@ html,body{height:100%;background:var(--bg);font-family:'IBM Plex Sans Thai',sans
   position:fixed;bottom:0;left:0;right:0;
   background:var(--bg2);border-top:1px solid var(--border);
   display:flex;align-items:center;justify-content:space-around;
-  height:calc(var(--nav-h) + env(safe-area-inset-bottom, 0px));
-  padding-bottom:env(safe-area-inset-bottom, 0px);
+  height:calc(var(--nav-h) + var(--nav-safe));
+  padding-bottom:var(--nav-safe);
   padding-left:env(safe-area-inset-left, 0px);
   padding-right:env(safe-area-inset-right, 0px);
   z-index:50;flex-shrink:0;
@@ -196,7 +198,7 @@ textarea.form-input{resize:vertical;min-height:70px}
 
 /* TOAST */
 .toast{
-  position:fixed;bottom:calc(var(--nav-h) + var(--safe-bottom) + 12px);
+  position:fixed;bottom:calc(var(--nav-h) + var(--nav-safe) + 12px);
   left:50%;transform:translateX(-50%) translateY(20px);
   background:var(--card2);border:1px solid var(--border);
   color:var(--text);padding:10px 18px;border-radius:20px;font-size:13px;
