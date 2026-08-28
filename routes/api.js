@@ -8,6 +8,29 @@ function requireAuth(req, res, next) {
 
 const { orgOwnerId, requireAdmin } = require('../lib/auth-util');
 
+// จำกัดการเรียก Claude API ต่อผู้ใช้ — กันค่าใช้จ่ายพุ่งถ้าบัญชีถูกยึดหรือสแกนรัว
+const aiUsage = new Map(); // userId -> { hour: {n, resetAt}, day: {n, resetAt} }
+const AI_PER_HOUR = 80;
+const AI_PER_DAY = 400;
+
+function checkAiQuota(userId) {
+  const now = Date.now();
+  let u = aiUsage.get(userId);
+  if (!u) { u = { hour: { n: 0, resetAt: now + 3600e3 }, day: { n: 0, resetAt: now + 86400e3 } }; aiUsage.set(userId, u); }
+  if (u.hour.resetAt <= now) u.hour = { n: 0, resetAt: now + 3600e3 };
+  if (u.day.resetAt <= now) u.day = { n: 0, resetAt: now + 86400e3 };
+  if (u.hour.n >= AI_PER_HOUR) return { ok: false, minutes: Math.ceil((u.hour.resetAt - now) / 60000), scope: 'ชั่วโมงนี้' };
+  if (u.day.n >= AI_PER_DAY) return { ok: false, minutes: Math.ceil((u.day.resetAt - now) / 60000), scope: 'วันนี้' };
+  u.hour.n++; u.day.n++;
+  return { ok: true };
+}
+
+setInterval(() => {
+  const now = Date.now();
+  for (const [k, v] of aiUsage) if (v.day.resetAt <= now) aiUsage.delete(k);
+}, 3600e3).unref();
+
+
 module.exports = (pool) => {
   const router = express.Router();
   router.use(requireAuth);
@@ -208,6 +231,12 @@ module.exports = (pool) => {
   /* ─── ANALYZE INVOICE WITH AI (auto-match company) ─── */
   router.post('/analyze', async (req, res) => {
     try {
+      const quota = checkAiQuota(req.user.id);
+      if (!quota.ok) {
+        return res.status(429).json({
+          error: `สแกนครบโควตา${quota.scope}แล้ว กรุณารออีก ${quota.minutes} นาที`,
+        });
+      }
     const OWNER_ID = await orgOwnerId(pool);
       const { imageBase64 } = req.body;
       if (!imageBase64) return res.status(400).json({ error: 'Missing imageBase64' });
@@ -414,6 +443,12 @@ ${coList}` },
   /* ─── ANALYZE WHT ─── */
   router.post('/analyze-wht', async (req, res) => {
     try {
+      const quota = checkAiQuota(req.user.id);
+      if (!quota.ok) {
+        return res.status(429).json({
+          error: `สแกนครบโควตา${quota.scope}แล้ว กรุณารออีก ${quota.minutes} นาที`,
+        });
+      }
     const OWNER_ID = await orgOwnerId(pool);
       const { imageBase64 } = req.body;
       if (!imageBase64) return res.status(400).json({ error: 'Missing imageBase64' });
