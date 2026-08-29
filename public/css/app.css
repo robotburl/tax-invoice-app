@@ -7,7 +7,7 @@
   --green:#4ade80;--green-bg:#0d2318;
   --amber:#fbbf24;--amber-bg:#2a1f08;
   --red:#f87171;--red-bg:#2a1010;
-  --nav-h:72px;
+  --nav-h:64px;
   --topbar-h:52px;
   --safe-top:env(safe-area-inset-top,0px);
   --safe-bottom:env(safe-area-inset-bottom,0px);
@@ -45,7 +45,8 @@ html,body{height:100%;background:var(--bg);font-family:'IBM Plex Sans Thai',sans
 .bottom-nav{
   position:fixed;bottom:0;left:0;right:0;
   background:var(--bg2);border-top:1px solid var(--border);
-  display:flex;align-items:center;justify-content:space-around;
+  /* ชิดล่าง (flex-end) แทนกึ่งกลาง เพื่อให้ไอคอนลงมาติดขอบจอ */
+  display:flex;align-items:flex-end;justify-content:space-around;
   height:calc(var(--nav-h) + var(--nav-safe));
   padding-bottom:var(--nav-safe);
   padding-left:env(safe-area-inset-left, 0px);
@@ -55,7 +56,7 @@ html,body{height:100%;background:var(--bg);font-family:'IBM Plex Sans Thai',sans
 .nav-item{
   flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;
   gap:4px;background:none;border:none;color:var(--text3);cursor:pointer;
-  font-family:inherit;font-size:11px;padding:8px 0;transition:color .2s;
+  font-family:inherit;font-size:11px;padding:8px 0 6px;transition:color .2s;
 }
 .nav-item.active{color:var(--accent)}
 .nav-item i{font-size:20px}
