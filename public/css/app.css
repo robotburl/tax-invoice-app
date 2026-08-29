@@ -11,8 +11,9 @@
   --topbar-h:52px;
   --safe-top:env(safe-area-inset-top,0px);
   --safe-bottom:env(safe-area-inset-bottom,0px);
-  /* เผื่อแถบ home indicator แค่ครึ่งเดียว ให้เมนูล่างชิดขอบมากขึ้นแต่ยังกดได้ */
-  --nav-safe:calc(env(safe-area-inset-bottom,0px) * .5);
+  /* ไม่เผื่อพื้นที่ home indicator — เมนูชิดขอบล่างสุดตามที่ต้องการ
+     (ตัวไอคอน/ข้อความยังมี padding ในตัวเอง จึงไม่ติดขอบจนกดยาก) */
+  --nav-safe:0px;
 }
 
 html,body{height:100%;background:var(--bg);font-family:'IBM Plex Sans Thai',sans-serif;color:var(--text);font-size:14px;line-height:1.6;overflow:hidden}
