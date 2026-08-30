@@ -11,9 +11,9 @@
   --topbar-h:52px;
   --safe-top:env(safe-area-inset-top,0px);
   --safe-bottom:env(safe-area-inset-bottom,0px);
-  /* ไม่เผื่อพื้นที่ home indicator — เมนูชิดขอบล่างสุดตามที่ต้องการ
-     (ตัวไอคอน/ข้อความยังมี padding ในตัวเอง จึงไม่ติดขอบจนกดยาก) */
-  --nav-safe:0px;
+  /* เผื่อพื้นที่ home indicator แค่ครึ่งเดียว — ไอคอนลงมาใกล้ขอบล่างขึ้น
+     แต่ยังไม่ทับแถบปัดขึ้นจนกดพลาด (บน iPhone 15/17 = 34px -> เหลือ 17px) */
+  --nav-safe:calc(env(safe-area-inset-bottom, 0px) * .5);
 }
 
 html,body{height:100%;height:100dvh;background:var(--bg);font-family:'IBM Plex Sans Thai',sans-serif;color:var(--text);font-size:14px;line-height:1.6;overflow:hidden}
@@ -54,12 +54,11 @@ html,body{height:100%;height:100dvh;background:var(--bg);font-family:'IBM Plex S
   /* ไม่ใช้ position:fixed แล้ว — เป็นแถวล่างสุดของ .app (flex column, 100dvh)
      วิธีนี้ชิดขอบจอจริงบน iOS standalone ซึ่ง fixed ทำไม่ได้ */
   background:var(--bg2);border-top:1px solid var(--border);
-  /* ชิดล่าง (flex-end) แทนกึ่งกลาง เพื่อให้ไอคอนลงมาติดขอบจอ */
-  display:flex;align-items:flex-end;justify-content:space-around;
-  /* ความสูงรวมพื้นที่ home indicator เพื่อให้พื้นหลังคลุมถึงขอบจอจริง
-     ส่วนไอคอนถูกดันไปล่างสุดด้วย align-items:flex-end */
-  height:calc(var(--nav-h) + env(safe-area-inset-bottom, 0px));
-  padding-bottom:0;
+  display:flex;align-items:center;justify-content:space-around;
+  /* พื้นหลังคลุมถึงขอบจอจริงเพราะเป็นแถวสุดท้ายของ .app (flex column เต็ม viewport)
+     ส่วน padding-bottom คือระยะเว้น home indicator */
+  height:calc(var(--nav-h) + var(--nav-safe));
+  padding-bottom:var(--nav-safe);
   padding-left:env(safe-area-inset-left, 0px);
   padding-right:env(safe-area-inset-right, 0px);
   z-index:50;flex-shrink:0;
