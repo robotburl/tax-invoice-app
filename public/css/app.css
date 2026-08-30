@@ -20,7 +20,9 @@ html,body{height:100%;height:100dvh;background:var(--bg);font-family:'IBM Plex S
 /* บน iOS standalone body ที่สูง 100% ยังเตี้ยกว่าจอจริง ทำให้เหลือช่องว่างใต้เมนู
    ใช้ 100dvh ทั้ง body และ .app เพื่อให้สูงเท่าจอจริงรวมพื้นที่ home indicator */
 
-.app{display:flex;flex-direction:column;height:100%;height:100dvh}
+/* ยึดกับจอโดยตรง (fixed + inset:0) ไม่ต้องพึ่งความสูงของ body/html
+   ซึ่งบน iOS standalone รายงานค่าไม่ตรงกับจอจริงในบางกรณี */
+.app{position:fixed;inset:0;display:flex;flex-direction:column}
 /* ใน HTML แท็ก <nav> เขียนไว้ก่อน .content — กำหนดลำดับการแสดงผลให้ถูกต้อง */
 .topbar{order:0}
 .content{order:1}
